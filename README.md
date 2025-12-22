@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 .
 ├── backend/          # FastAPI application
 ├── frontend/           # Next.js application
@@ -122,3 +123,6 @@ Harden Docker configuration for production, add environment-based configs, CI/CD
 
 This project focuses on system design, streaming architecture, and generative UI patterns rather than full feature completion.
 It demonstrates how modern AI-powered interfaces can be built using incremental streaming, async processing, and dynamic UI composition.
+=======
+# CalQuity
+>>>>>>> 980e1e26292a2333dd8243781aa6c5328a615cf9
