@@ -1,1 +1,16 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Uploaded files
+backend/uploads/
+
+# Node / frontend
+node_modules/
+.next/
+dist/
+
+# OS
+.DS_Store
+
 .env

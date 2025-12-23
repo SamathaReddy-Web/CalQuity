@@ -4,46 +4,54 @@ import Sidebar from "@/components/Sidebar";
 import ChatArea from "@/components/ChatArea";
 import ThemeToggle from "@/components/ThemeToggle";
 import { usePdfStore } from "@/store/pdfStore";
+import { useThemeStore } from "@/store/themeStore";
 import { AnimatePresence, motion } from "framer-motion";
 import dynamic from "next/dynamic";
 
-// 🔴 IMPORTANT: Disable SSR for PDF viewer
+// 🔴 Disable SSR for PDF viewer
 const PdfViewer = dynamic(() => import("@/components/PdfViewer"), {
   ssr: false,
 });
 
 export default function Page() {
   const isOpen = usePdfStore((s) => s.isOpen);
+  const theme = useThemeStore((s) => s.theme);
+
+  /* 🎨 Theme tokens */
+  const appBg =
+    theme === "dark" ? "bg-neutral-950 text-neutral-100" : "bg-neutral-50 text-neutral-900";
+
+  const panelBg =
+    theme === "dark" ? "bg-neutral-900" : "bg-white";
+
+  const pdfBg =
+    theme === "dark" ? "bg-neutral-950" : "bg-white";
+
+  const border =
+    theme === "dark" ? "border-neutral-800" : "border-neutral-200";
 
   return (
-    <div
-      className="
-        flex h-screen w-full
-        bg-white text-black
-        dark:bg-black dark:text-white
-        transition-colors
-      "
-    >
-      {/* LEFT SIDEBAR (Chat History) */}
+    <div className={`flex h-screen w-full ${appBg}`}>
+      {/* SIDEBAR */}
       <Sidebar />
 
-      {/* RIGHT MAIN AREA */}
+      {/* MAIN */}
       <div className="flex flex-1 relative overflow-hidden">
-        {/* 🌗 Theme Toggle (Top Right) */}
+        {/* THEME TOGGLE */}
         <div className="absolute top-4 right-6 z-50">
           <ThemeToggle />
         </div>
 
-        {/* CHAT AREA */}
+        {/* CHAT */}
         <motion.div
           animate={{ width: isOpen ? "60%" : "100%" }}
           transition={{ duration: 0.3, ease: "easeInOut" }}
-          className="h-full"
+          className={`h-full ${panelBg}`}
         >
           <ChatArea />
         </motion.div>
 
-        {/* PDF VIEWER */}
+        {/* PDF */}
         <AnimatePresence>
           {isOpen && (
             <motion.div
@@ -51,12 +59,7 @@ export default function Page() {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: 300, opacity: 0 }}
               transition={{ duration: 0.3, ease: "easeInOut" }}
-              className="
-                w-[40%] h-full
-                border-l border-neutral-300
-                dark:border-neutral-800
-                bg-white dark:bg-neutral-950
-              "
+              className={`w-[40%] h-full border-l ${pdfBg} ${border}`}
             >
               <PdfViewer />
             </motion.div>

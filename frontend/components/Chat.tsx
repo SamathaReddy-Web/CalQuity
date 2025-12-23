@@ -3,7 +3,7 @@
 import Sidebar from "@/components/Sidebar";
 import ChatArea from "@/components/ChatArea";
 
-export default function Page() {
+export default function Chat() {
   return (
     <div className="flex h-screen bg-white dark:bg-neutral-900
 text-black dark:text-white

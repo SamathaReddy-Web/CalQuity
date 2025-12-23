@@ -1,6 +1,7 @@
 "use client";
 
 import { useChatStore } from "@/store/chatStore";
+import { useThemeStore } from "@/store/themeStore";
 import Citation from "./Citation";
 
 export default function ChatStream() {
@@ -8,6 +9,7 @@ export default function ChatStream() {
   const currentChatId = useChatStore((s) => s.currentChatId);
   const typing = useChatStore((s) => s.typing);
   const thinkingStage = useChatStore((s) => s.thinkingStage);
+  const theme = useThemeStore((s) => s.theme);
 
   const chat =
     currentChatId
@@ -24,6 +26,16 @@ export default function ChatStream() {
       : thinkingStage === "answering"
       ? "✍️ Generating answer"
       : null;
+
+  /* 🎨 Theme tokens */
+  const userBubble =
+    theme === "dark" ? "bg-neutral-800 text-neutral-100" : "bg-neutral-200 text-neutral-900";
+
+  const assistantBubble =
+    theme === "dark" ? "bg-neutral-900 text-neutral-100" : "bg-white text-neutral-900";
+
+  const mutedText =
+    theme === "dark" ? "text-neutral-400" : "text-neutral-500";
 
   function renderAssistant(content: string) {
     const lines = content
@@ -53,7 +65,7 @@ export default function ChatStream() {
   }
 
   return (
-    <div className="space-y-10 px-6 max-w-3xl mx-auto">
+    <div className="space-y-12 px-6 max-w-3xl mx-auto">
       {messages.map((m, i) => {
         const safeContent = String(m?.content ?? "");
 
@@ -69,11 +81,7 @@ export default function ChatStream() {
                 max-w-[80%]
                 rounded-2xl px-6 py-4
                 shadow-sm
-                ${
-                  m.role === "user"
-                    ? "bg-neutral-200 dark:bg-neutral-800 text-right"
-                    : "bg-neutral-100 dark:bg-neutral-900"
-                }
+                ${m.role === "user" ? userBubble : assistantBubble}
                 text-[15.5px] leading-7
               `}
             >
@@ -86,7 +94,7 @@ export default function ChatStream() {
       })}
 
       {typing && stageText && (
-        <div className="flex items-center gap-2 text-xs text-neutral-500 animate-pulse">
+        <div className={`flex items-center gap-2 text-xs ${mutedText} animate-pulse`}>
           <span className="w-2 h-2 rounded-full bg-neutral-400 animate-bounce" />
           <span>{stageText}…</span>
         </div>

@@ -8,7 +8,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="transition-colors bg-white text-black dark:bg-black dark:text-white">
+      <body className="transition-colors duration-300">
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>

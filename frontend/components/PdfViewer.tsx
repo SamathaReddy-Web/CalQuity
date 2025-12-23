@@ -10,15 +10,16 @@ import "@react-pdf-viewer/search/lib/styles/index.css";
 import "@/styles/pdf-highlight.css";
 
 import { usePdfStore } from "@/store/pdfStore";
+import { useThemeStore } from "@/store/themeStore";
 
 export default function PdfViewer() {
   const { activeCitation, allCitations, close } = usePdfStore();
+  const theme = useThemeStore((s) => s.theme);
 
   if (!activeCitation) return null;
 
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
 
-  // 🔑 highlight only valid strings
   const keywords = allCitations
     .map((c) => c?.quote)
     .filter((q): q is string => typeof q === "string" && q.length > 0);
@@ -30,11 +31,24 @@ export default function PdfViewer() {
 
   const pdfUrl = `http://127.0.0.1:8000/uploads/${activeCitation.doc_id}.pdf`;
 
+  const panel =
+    theme === "dark"
+      ? "bg-neutral-950 text-neutral-100 border-neutral-800"
+      : "bg-white text-neutral-900 border-neutral-200";
+
+  const subText =
+    theme === "dark" ? "text-neutral-300" : "text-neutral-600";
+
+  const quoteBg =
+    theme === "dark"
+      ? "bg-yellow-900/30 text-yellow-200"
+      : "bg-yellow-100 text-yellow-800";
+
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-neutral-900 text-black dark:text-white border-l border-neutral-200 dark:border-neutral-800">
+    <div className={`h-full flex flex-col border-l ${panel}`}>
       {/* Header */}
-      <div className="p-3 flex justify-between items-center border-b border-neutral-200 dark:border-neutral-800">
-        <div className="text-sm text-neutral-600 dark:text-neutral-300">
+      <div className="p-3 flex justify-between items-center border-b border-inherit">
+        <div className={`text-sm ${subText}`}>
           Source · Page {activeCitation.page}
         </div>
         <button
@@ -46,7 +60,7 @@ export default function PdfViewer() {
       </div>
 
       {/* Active citation */}
-      <div className="p-3 text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">
+      <div className={`p-3 text-xs ${quoteBg}`}>
         <blockquote className="italic leading-relaxed">
           “{activeCitation.quote}”
         </blockquote>

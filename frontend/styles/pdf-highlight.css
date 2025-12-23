@@ -1,11 +1,6 @@
-/* Base highlight */
 .rpv-search__highlight {
-  background-color: rgba(59, 130, 246, 0.35) !important; /* blue */
-  border-radius: 4px;
-  padding: 1px 2px;
+  background-color: rgba(59, 130, 246, 0.35) !important;
 }
-
-/* Active (focused) highlight */
 .rpv-search__highlight--selected {
-  background-color: rgba(234, 179, 8, 0.5) !important; /* amber */
+  background-color: rgba(234, 179, 8, 0.5) !important;
 }

@@ -2,11 +2,14 @@
 
 import { useRef, useState } from "react";
 import { useChatStore } from "@/store/chatStore";
+import { useThemeStore } from "@/store/themeStore";
 import { connectSSE } from "@/lib/sse";
 
 export default function InputBar() {
   const [q, setQ] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const theme = useThemeStore((s) => s.theme);
 
   const addUserMessage = useChatStore((s) => s.addUserMessage);
   const appendAssistantText = useChatStore((s) => s.appendAssistantText);
@@ -15,7 +18,11 @@ export default function InputBar() {
   const addCitation = useChatStore((s) => s.addCitation);
   const setDocuments = useChatStore((s) => s.setDocuments);
 
-  /* ---------------- FILE UPLOAD ---------------- */
+  const surface =
+    theme === "dark" ? "bg-neutral-900 border-neutral-800" : "bg-white border-neutral-300";
+
+  const sendBtn =
+    theme === "dark" ? "bg-white text-black" : "bg-black text-white";
 
   async function uploadFiles(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files) return;
@@ -30,14 +37,11 @@ export default function InputBar() {
       });
     }
 
-    // Refresh document list
     const res = await fetch("http://127.0.0.1:8000/documents");
     setDocuments(await res.json());
 
     e.target.value = "";
   }
-
-  /* ---------------- SEND MESSAGE ---------------- */
 
   async function sendMessage() {
     if (!q.trim()) return;
@@ -61,51 +65,38 @@ export default function InputBar() {
       if (!event || !event.type) return;
 
       switch (event.type) {
-        case "typing": {
+        case "typing":
           setTyping(Boolean(event.content?.typing));
           break;
-        }
 
         case "tool": {
           const msg = event.content?.message ?? "";
-
           if (msg.includes("Searching")) setThinkingStage("searching");
           else if (msg.includes("Reading")) setThinkingStage("analyzing");
           else setThinkingStage("answering");
-
           break;
         }
 
         case "text": {
-          // ✅ CORRECT STRING EXTRACTION
           const value =
             typeof event.content === "string"
               ? event.content
               : event.content?.content;
 
-          if (typeof value === "string") {
-            appendAssistantText(value);
-          }
+          if (typeof value === "string") appendAssistantText(value);
           break;
         }
 
-        case "citation": {
+        case "citation":
           addCitation(event.content);
-          break;
-        }
-
-        default:
           break;
       }
     });
   }
 
-  /* ---------------- UI ---------------- */
-
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="flex items-center gap-3 rounded-xl border px-4 py-3 bg-white dark:bg-neutral-900">
-        {/* Attach PDF */}
+      <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${surface}`}>
         <button
           onClick={() => fileRef.current?.click()}
           className="text-lg hover:opacity-70"
@@ -133,7 +124,7 @@ export default function InputBar() {
 
         <button
           onClick={sendMessage}
-          className="px-3 py-1 rounded-lg bg-black text-white dark:bg-white dark:text-black"
+          className={`px-3 py-1 rounded-lg ${sendBtn}`}
         >
           →
         </button>

@@ -8,10 +8,9 @@ export default function ThemeProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const { theme, setTheme } = useThemeStore();
+  const { setTheme } = useThemeStore();
   const initialized = useRef(false);
 
-  // 1️⃣ Read browser preference ONCE
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
@@ -24,12 +23,6 @@ export default function ThemeProvider({
       setTheme("dark");
     }
   }, [setTheme]);
-
-  // 2️⃣ Sync HTML class
-  useEffect(() => {
-    const html = document.documentElement;
-    html.classList.toggle("dark", theme === "dark");
-  }, [theme]);
 
   return <>{children}</>;
 }
