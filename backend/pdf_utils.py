@@ -1,9 +1,11 @@
-# backend/pdf_utils.py
-
 import pdfplumber
 import re
 import difflib
 from typing import Dict, List
+
+import pytesseract
+from pdf2image import convert_from_path
+from PIL import Image
 
 DOCUMENTS: Dict[str, Dict] = {}
 
@@ -13,17 +15,40 @@ DOCUMENTS: Dict[str, Dict] = {}
 
 def extract_pdf_text(path: str) -> Dict[int, List[str]]:
     pages: Dict[int, List[str]] = {}
+
     with pdfplumber.open(path) as pdf:
         for i, page in enumerate(pdf.pages):
             text = page.extract_text() or ""
-            pages[i + 1] = split_sentences(text)
+            print(f"PAGE {i+1} TEXT LENGTH:", len(text))
+
+            if text.strip():
+                pages[i + 1] = split_sentences(text)
+            else:
+                # 🔥 OCR FALLBACK
+                print(f"OCR FALLBACK FOR PAGE {i+1}")
+                ocr_text = ocr_page(path, i + 1)
+                pages[i + 1] = split_sentences(ocr_text)
+
     return pages
+
+
+def ocr_page(pdf_path: str, page_number: int) -> str:
+    images = convert_from_path(
+        pdf_path,
+        first_page=page_number,
+        last_page=page_number
+    )
+    if not images:
+        return ""
+
+    return pytesseract.image_to_string(images[0])
+
 
 def split_sentences(text: str) -> List[str]:
     return [
         s.strip()
         for s in re.split(r'(?<=[.!?])\s+', text)
-        if len(s.strip()) > 25
+        if len(s.strip()) > 8
     ]
 
 # -------------------------------
@@ -36,6 +61,10 @@ def register_pdf(doc_id: str, filename: str, pages: Dict[int, List[str]]):
         "pages": pages,
     }
 
+    total_sentences = sum(len(p) for p in pages.values())
+    print(f"PDF REGISTERED → {filename} | Sentences:", total_sentences)
+
+
 def list_documents():
     return [
         {
@@ -46,81 +75,46 @@ def list_documents():
         for doc_id, doc in DOCUMENTS.items()
     ]
 
-def delete_document(doc_id: str):
-    """🆕 Remove document from in-memory registry"""
-    if doc_id in DOCUMENTS:
-        del DOCUMENTS[doc_id]
+
+def delete_document(doc_id: str | None = None):
+    if doc_id is None:
+        DOCUMENTS.clear()
+        print("ALL DOCUMENTS CLEARED")
+    else:
+        DOCUMENTS.pop(doc_id, None)
+        print("DOCUMENT REMOVED:", doc_id)
 
 # -------------------------------
-# Search logic
+# Search (RAG core)
 # -------------------------------
 
-def preprocess_text(text: str) -> str:
-    """Normalize text for better matching."""
-    # Convert to lowercase and remove extra whitespace
-    text = text.lower().strip()
-    # Remove punctuation except for word boundaries
-    text = re.sub(r'[^\w\s]', ' ', text)
-    # Normalize whitespace
-    text = re.sub(r'\s+', ' ', text)
-    return text
+def preprocess(text: str) -> str:
+    text = text.lower()
+    text = re.sub(r"[^\w\s]", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
 
-def score_sentence(query: str, sentence: str) -> float:
-    """Improved scoring that considers partial matches and fuzzy matching."""
-    query_processed = preprocess_text(query)
-    sentence_processed = preprocess_text(sentence)
 
-    query_words = set(query_processed.split())
-    sentence_words = set(sentence_processed.split())
+def score(query: str, sentence: str) -> float:
+    return difflib.SequenceMatcher(None, preprocess(query), preprocess(sentence)).ratio()
 
-    # Exact word matches (highest weight)
-    exact_matches = len(query_words & sentence_words)
-
-    # Partial word matches (substring matching)
-    partial_score = 0
-    for q_word in query_words:
-        for s_word in sentence_words:
-            if q_word in s_word or s_word in q_word:
-                partial_score += 0.5
-
-    # Fuzzy matching for similar words
-    fuzzy_score = 0
-    for q_word in query_words:
-        for s_word in sentence_words:
-            similarity = difflib.SequenceMatcher(None, q_word, s_word).ratio()
-            if similarity > 0.8:  # High similarity threshold
-                fuzzy_score += similarity * 0.3
-
-    # Substring matching in the full text
-    substring_score = 0
-    query_parts = query_processed.split()
-    for part in query_parts:
-        if len(part) > 2 and part in sentence_processed:
-            substring_score += 0.2
-
-    total_score = exact_matches + partial_score + fuzzy_score + substring_score
-
-    return total_score
 
 def search_documents(query: str, doc_ids: list[str] | None = None):
-    """
-    Search sentences across indexed PDFs.
-    If doc_ids is provided, only search those documents.
-    """
-
     results = []
 
-    for doc in DOCUMENTS: 
-        if doc_ids and doc["doc_id"] not in doc_ids:
+    for doc_id, doc in DOCUMENTS.items():
+        if doc_ids and doc_id not in doc_ids:
             continue
 
-        for page_no, text in enumerate(doc["pages"], start=1):
-            if query.lower() in text.lower():
-                results.append({
-                    "doc_id": doc["doc_id"],
-                    "page": page_no,
-                    "sentence": text.strip()[:300],
-                })
+        for page_no, sentences in doc["pages"].items():
+            for sentence in sentences:
+                s = score(query, sentence)
+                if s > 0.25:
+                    results.append({
+                        "doc_id": doc_id,
+                        "page": page_no,
+                        "sentence": sentence,
+                        "score": s,
+                    })
 
-    return results
-
+    print("MATCHES FOUND:", len(results))
+    return sorted(results, key=lambda x: x["score"], reverse=True)

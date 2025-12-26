@@ -24,20 +24,23 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 @app.post("/upload")
-async def upload(file: UploadFile = File(...)):
+async def upload(
+    file: UploadFile = File(...),
+    path: str = Query(default="")
+):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "Only PDF allowed")
 
     doc_id = str(uuid.uuid4())
-    path = os.path.join(UPLOAD_DIR, f"{doc_id}.pdf")
+    save_path = os.path.join(UPLOAD_DIR, f"{doc_id}.pdf")
 
-    with open(path, "wb") as f:
+    with open(save_path, "wb") as f:
         f.write(await file.read())
 
-    pages = extract_pdf_text(path)
+    pages = extract_pdf_text(save_path)
     register_pdf(doc_id, file.filename, pages)
 
-    return {"doc_id": doc_id, "filename": file.filename, "pages": len(pages)}
+    return {"doc_id": doc_id, "filename": file.filename, "pages": len(pages), "path": path}
 
 @app.get("/documents")
 def documents():
@@ -45,7 +48,11 @@ def documents():
 
 @app.delete("/documents/{doc_id}")
 def delete(doc_id: str):
-    os.remove(os.path.join(UPLOAD_DIR, f"{doc_id}.pdf"))
+    path = os.path.join(UPLOAD_DIR, f"{doc_id}.pdf")
+    
+    if os.path.exists(path):
+        os.remove(path)
+    
     delete_document(doc_id)
     return {"status": "deleted"}
 
@@ -61,3 +68,16 @@ async def chat(req: ChatRequest):
 async def stream(job_id: str, query: str, doc_ids: str = ""):
     ids = doc_ids.split(",") if doc_ids else []
     return sse_response(query, ids)
+
+@app.delete("/documents")
+def clear_all_documents():
+    # delete files
+    for f in os.listdir(UPLOAD_DIR):
+        if f.endswith(".pdf"):
+            os.remove(os.path.join(UPLOAD_DIR, f))
+
+    # clear metadata
+    delete_document(None)  # see note below
+
+    return {"status": "cleared"}
+

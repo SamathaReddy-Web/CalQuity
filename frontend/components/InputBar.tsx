@@ -11,97 +11,95 @@ export default function InputBar() {
 
   const theme = useThemeStore((s) => s.theme);
 
-  const addUserMessage = useChatStore((s) => s.addUserMessage);
-  const appendAssistantText = useChatStore((s) => s.appendAssistantText);
-  const setTyping = useChatStore((s) => s.setTyping);
-  const setThinkingStage = useChatStore((s) => s.setThinkingStage);
-  const addCitation = useChatStore((s) => s.addCitation);
-  const setDocuments = useChatStore((s) => s.setDocuments);
+  const {
+    addUserMessage,
+    appendAssistantText,
+    setTyping,
+    setThinkingStage,
+    addCitation,
+    setDocuments,
+    pendingFiles,
+    addPendingFiles,
+    clearPendingFiles,
+  } = useChatStore();
 
   const surface =
-    theme === "dark" ? "bg-neutral-900 border-neutral-800" : "bg-white border-neutral-300";
+    theme === "dark"
+      ? "bg-neutral-900 border-neutral-800"
+      : "bg-white border-neutral-300";
 
   const sendBtn =
     theme === "dark" ? "bg-white text-black" : "bg-black text-white";
 
-  async function uploadFiles(e: React.ChangeEvent<HTMLInputElement>) {
+  /* ✅ ONLY STORE FILES LOCALLY */
+  function onSelectFiles(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files) return;
-
-    for (const file of Array.from(e.target.files)) {
-      const form = new FormData();
-      form.append("file", file);
-
-      await fetch("http://127.0.0.1:8000/upload", {
-        method: "POST",
-        body: form,
-      });
-    }
-
-    const res = await fetch("http://127.0.0.1:8000/documents");
-    setDocuments(await res.json());
-
+    addPendingFiles(e.target.files);
     e.target.value = "";
   }
 
   async function sendMessage() {
-    if (!q.trim()) return;
+    if (!q.trim() && pendingFiles.length === 0) return;
 
-    const query = q.trim();
+    /* 1️⃣ Upload files */
+    const uploaded = [];
+
+    for (const pf of pendingFiles) {
+      const form = new FormData();
+      form.append("file", pf.file);
+
+      const res = await fetch("http://127.0.0.1:8000/upload", {
+        method: "POST",
+        body: form,
+      });
+
+      const data = await res.json();
+      uploaded.push({
+        doc_id: data.doc_id,
+        filename: data.filename,
+        pages: data.pages,
+        size: pf.file.size,
+      });
+    }
+
+    /* 2️⃣ Store USER message with files */
+    addUserMessage({
+      role: "user",
+      content: q,
+      files: uploaded,
+    });
+
+    clearPendingFiles();
     setQ("");
 
-    addUserMessage(query);
+    /* 3️⃣ Send to backend */
     setTyping(true);
     setThinkingStage("searching");
 
     const res = await fetch("http://127.0.0.1:8000/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({
+        query: q,
+        doc_ids: uploaded.map((f) => f.doc_id),
+      }),
     });
 
     const { job_id } = await res.json();
 
-    connectSSE(job_id, query, (event) => {
-      if (!event || !event.type) return;
+    connectSSE(job_id, q, uploaded.map((f) => f.doc_id), (event) => {
+      if (!event?.type) return;
 
-      switch (event.type) {
-        case "typing":
-          setTyping(Boolean(event.content?.typing));
-          break;
-
-        case "tool": {
-          const msg = event.content?.message ?? "";
-          if (msg.includes("Searching")) setThinkingStage("searching");
-          else if (msg.includes("Reading")) setThinkingStage("analyzing");
-          else setThinkingStage("answering");
-          break;
-        }
-
-        case "text": {
-          const value =
-            typeof event.content === "string"
-              ? event.content
-              : event.content?.content;
-
-          if (typeof value === "string") appendAssistantText(value);
-          break;
-        }
-
-        case "citation":
-          addCitation(event.content);
-          break;
-      }
+      if (event.type === "typing") setTyping(event.content.typing);
+      if (event.type === "text") appendAssistantText(event.content);
+      if (event.type === "citation") addCitation(event.content);
     });
   }
 
   return (
     <div className="mx-auto max-w-3xl">
       <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${surface}`}>
-        <button
-          onClick={() => fileRef.current?.click()}
-          className="text-lg hover:opacity-70"
-          title="Upload PDF"
-        >
+        <button onClick={() => fileRef.current?.click()} className="text-lg">
           📎
         </button>
 
@@ -111,7 +109,7 @@ export default function InputBar() {
           accept="application/pdf"
           multiple
           hidden
-          onChange={uploadFiles}
+          onChange={onSelectFiles}
         />
 
         <input

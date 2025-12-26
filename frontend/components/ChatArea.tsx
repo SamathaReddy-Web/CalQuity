@@ -3,6 +3,8 @@
 import ChatStream from "./ChatStream";
 import InputBar from "./InputBar";
 import EmptyState from "./EmptyState";
+import PendingFilesBar from "./PendingFilesBar";
+
 import { useChatStore } from "@/store/chatStore";
 import { useThemeStore } from "@/store/themeStore";
 
@@ -21,10 +23,14 @@ export default function ChatArea() {
 
   /* 🎨 Theme tokens */
   const surface =
-    theme === "dark" ? "bg-neutral-950 text-neutral-100" : "bg-neutral-50 text-neutral-900";
+    theme === "dark"
+      ? "bg-neutral-950 text-neutral-100"
+      : "bg-neutral-50 text-neutral-900";
 
   const inputBg =
-    theme === "dark" ? "bg-neutral-950" : "bg-neutral-50";
+    theme === "dark"
+      ? "bg-neutral-950 border-neutral-800"
+      : "bg-neutral-50 border-neutral-200";
 
   return (
     <main className={`flex-1 flex flex-col h-full ${surface}`}>
@@ -35,9 +41,15 @@ export default function ChatArea() {
         </div>
       </div>
 
-      {/* INPUT */}
-      <div className={`sticky bottom-0 pt-4 pb-6 ${inputBg}`}>
-        <InputBar />
+      {/* INPUT AREA */}
+      <div className={`sticky bottom-0 pt-3 pb-5 border-t ${inputBg}`}>
+        <div className="mx-auto max-w-3xl">
+          {/* 🧷 FILES SELECTED BUT NOT SENT */}
+          <PendingFilesBar />
+
+          {/* ✍️ INPUT */}
+          <InputBar />
+        </div>
       </div>
     </main>
   );

@@ -1,8 +1,9 @@
 from fastapi.responses import StreamingResponse
 import asyncio
 import json
-from pdf_utils import search_documents
+
 from llm import llm_only_answer, llm_with_context
+from pdf_utils import DOCUMENTS
 
 
 def sse(event_type: str, content: dict):
@@ -10,64 +11,71 @@ def sse(event_type: str, content: dict):
 
 
 async def event_generator(query: str, doc_ids: list[str] | None):
-    print("🟢 SSE STARTED | QUERY:", query)
-    print("📎 DOC IDS:", doc_ids)
+    print("QUERY:", query)
+    print("DOC IDS RECEIVED:", doc_ids)
 
     yield sse("typing", {"typing": True})
+    yield sse("tool", {"message": "🔍 Processing request"})
+    await asyncio.sleep(0.2)
 
-    yield sse("tool", {"message": "🔍 Searching documents..."})
-    await asyncio.sleep(0.3)
+    # =====================================================
+    # CASE 1: FILES SELECTED → FORCE DOCUMENT CONTEXT
+    # =====================================================
+    if doc_ids:
+        print("FILES SELECTED → USING DOCUMENT CONTEXT")
 
-    try:
-        matches = search_documents(query, doc_ids)
-        print("🟡 SEARCH RESULT:", matches)
-    except Exception as e:
-        print("❌ SEARCH FAILED:", e)
-        yield sse("text", {"content": "Search failed."})
-        yield sse("typing", {"typing": False})
-        return
+        context_lines: list[str] = []
+        citations: list[dict] = []
+        cid = 1
 
-    # ---------- NO DOCUMENTS ----------
-    if not matches:
-        yield sse("tool", {"message": "🧠 Thinking..."})
-        await asyncio.sleep(0.3)
+        for doc_id in doc_ids:
+            doc = DOCUMENTS.get(doc_id)
 
-        answer = llm_only_answer(query)
-        print("🟢 LLM ANSWER:", answer)
+            if not doc:
+                print("⚠️ DOC NOT FOUND:", doc_id)
+                continue
+
+            for page_no, sentences in doc["pages"].items():
+                for sentence in sentences[:4]:  # safe cap per page
+                    context_lines.append(f"[{cid}] {sentence}")
+                    citations.append({
+                        "id": cid,
+                        "doc_id": doc_id,
+                        "page": page_no,
+                        "quote": sentence,
+                    })
+                    cid += 1
+                break  # only first page per doc
+
+            break  # only first document (for now)
+
+        print("CONTEXT SIZE:", len(context_lines))
+
+        # ❗ SAFETY CHECK
+        if not context_lines:
+            print("⚠️ EMPTY CONTEXT — FALLING BACK TO LLM ONLY")
+            answer = llm_only_answer(query)
+            yield sse("text", {"content": answer})
+            yield sse("typing", {"typing": False})
+            return
+
+        answer = llm_with_context(query, "\n".join(context_lines))
 
         yield sse("text", {"content": answer})
+
+        for c in citations:
+            yield sse("citation", c)
+
         yield sse("typing", {"typing": False})
         return
 
-    # ---------- DOCUMENTS (RAG) ----------
-    yield sse("tool", {"message": "📄 Reading PDFs..."})
-    await asyncio.sleep(0.3)
+    # =====================================================
+    # CASE 2: NO FILES → NORMAL CHAT
+    # =====================================================
+    print("NO FILES → NORMAL CHAT")
 
-    context_lines = []
-    citations = []
-
-    for i, m in enumerate(matches[:5], start=1):
-        context_lines.append(f"[{i}] {m['sentence']}")
-        citations.append({
-            "id": i,
-            "doc_id": m["doc_id"],
-            "page": m["page"],
-            "quote": m["sentence"],
-        })
-
-    context = "\n".join(context_lines)
-
-    yield sse("tool", {"message": "🧠 Generating answer..."})
-    await asyncio.sleep(0.3)
-
-    answer = llm_with_context(query, context)
-    print("🟢 RAG ANSWER:", answer)
-
+    answer = llm_only_answer(query)
     yield sse("text", {"content": answer})
-
-    for c in citations:
-        yield sse("citation", c)
-
     yield sse("typing", {"typing": False})
 
 

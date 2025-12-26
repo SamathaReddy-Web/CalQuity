@@ -1,26 +1,28 @@
-// lib/sse.ts
-
 export function connectSSE(
   jobId: string,
   query: string,
+  docIds: string[],
   onEvent: (e: any) => void
 ) {
+  const params = new URLSearchParams({
+    query,
+    doc_ids: docIds.join(","),
+  });
+
+  console.log("Query:", query, "Doc IDs:", docIds);
+
   const es = new EventSource(
-    `http://127.0.0.1:8000/stream/${jobId}?query=${encodeURIComponent(query)}`
+    `http://127.0.0.1:8000/stream/${jobId}?${params.toString()}`
   );
 
   es.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
       onEvent(data);
-    } catch {
-      // ignore malformed chunks
-    }
+    } catch {}
   };
 
   es.onerror = () => {
-    // ❗ DO NOT LOG AS ERROR
-    // This fires when server closes the stream (NORMAL)
     es.close();
   };
 
