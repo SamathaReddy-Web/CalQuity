@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-/* ---------- Types ---------- */
+/* ===================== TYPES ===================== */
 
 export type FileAttachment = {
   doc_id: string;
@@ -14,12 +14,6 @@ export type PendingFile = {
   file: File;
 };
 
-export type Message = {
-  role: "user" | "assistant";
-  content: string;
-  files?: FileAttachment[];
-};
-
 export type Citation = {
   id: number;
   doc_id: string;
@@ -27,11 +21,34 @@ export type Citation = {
   quote: string;
 };
 
+export type UIBlock =
+  | { type: "chart"; data: any }
+  | { type: "table"; data: any }
+  | { type: "card"; data: any };
+
+export type AssistantResponse = {
+  id: string;
+  text: string;
+  completed: boolean;
+  citations: Citation[];
+  uiBlocks: UIBlock[];
+};
+
+export type Message =
+  | {
+      role: "user";
+      content: string;
+      files?: FileAttachment[];
+    }
+  | {
+      role: "assistant";
+      response: AssistantResponse;
+    };
+
 type ChatSession = {
   id: string;
   title: string;
   messages: Message[];
-  citations: Citation[];
 };
 
 type ThinkingStage = "searching" | "analyzing" | "answering" | null;
@@ -42,6 +59,8 @@ type DocumentMeta = {
   pages: number;
 };
 
+/* ===================== STATE ===================== */
+
 type ChatState = {
   chats: ChatSession[];
   currentChatId: string | null;
@@ -50,40 +69,46 @@ type ChatState = {
   thinkingStage: ThinkingStage;
 
   documents: DocumentMeta[];
-
-  /* 🔑 NEW */
   pendingFiles: PendingFile[];
 
-  /* ---------- Chat ---------- */
+  /* viewer */
+  activeCitation: Citation | null;
+  viewerOpen: boolean;
+
+  /* actions */
   startNewChat: () => void;
   ensureChatExists: () => void;
-  switchChat: (id: string) => void;
+  addUserMessage: (msg: {
+    content: string;
+    files?: FileAttachment[];
+  }) => void;
 
-  addUserMessage: (msg: Message) => void;
-  appendAssistantText: (text: string) => void;
-  addCitation: (c: Citation) => void;
+  startAssistantResponse: () => void;
+  appendAssistantDelta: (delta: string) => void;
+  addCitationToResponse: (citation: Citation) => void;
+  finalizeAssistantResponse: () => void;
 
-  /* ---------- State ---------- */
+  /* 🔑 STABLE SELECTOR */
+  getCitationById: (id: number) => Citation | null;
+
+  /* misc */
   setTyping: (v: boolean) => void;
   setThinkingStage: (s: ThinkingStage) => void;
-
   setDocuments: (d: DocumentMeta[]) => void;
 
-  /* ---------- Pending files ---------- */
   addPendingFiles: (files: FileList) => void;
-  removePendingFile: (id: string) => void;
   clearPendingFiles: () => void;
 };
 
 export const useChatStore = create<ChatState>((set, get) => ({
   chats: [],
   currentChatId: null,
-
   typing: false,
   thinkingStage: null,
-
   documents: [],
   pendingFiles: [],
+  activeCitation: null,
+  viewerOpen: false,
 
   ensureChatExists: () => {
     if (!get().currentChatId) get().startNewChat();
@@ -91,19 +116,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   startNewChat: () => {
     const id = crypto.randomUUID();
-    set((s) => ({
-      chats: [{ id, title: "New chat", messages: [], citations: [] }, ...s.chats],
+    set({
+      chats: [{ id, title: "New chat", messages: [] }],
       currentChatId: id,
-      pendingFiles: [],
-      typing: false,
-      thinkingStage: null,
-    }));
+    });
   },
 
-  switchChat: (id) =>
-    set({ currentChatId: id, typing: false, thinkingStage: null }),
-
-  addUserMessage: (msg) => {
+  addUserMessage: ({ content, files }) => {
     get().ensureChatExists();
     const { chats, currentChatId } = get();
 
@@ -112,74 +131,125 @@ export const useChatStore = create<ChatState>((set, get) => ({
         c.id === currentChatId
           ? {
               ...c,
-              title:
-                c.messages.length === 0
-                  ? msg.content.slice(0, 40)
-                  : c.title,
-              messages: [...c.messages, msg],
+              messages: [...c.messages, { role: "user", content, files }],
             }
           : c
       ),
     });
   },
 
-  appendAssistantText: (text) => {
+  startAssistantResponse: () => {
+    const { chats, currentChatId } = get();
+    if (!currentChatId) return;
+
+    set({
+      chats: chats.map((c) =>
+        c.id === currentChatId
+          ? {
+              ...c,
+              messages: [
+                ...c.messages,
+                {
+                  role: "assistant",
+                  response: {
+                    id: crypto.randomUUID(),
+                    text: "",
+                    completed: false,
+                    citations: [],
+                    uiBlocks: [],
+                  },
+                },
+              ],
+            }
+          : c
+      ),
+    });
+  },
+
+  appendAssistantDelta: (delta) => {
     const { chats, currentChatId } = get();
     if (!currentChatId) return;
 
     set({
       chats: chats.map((c) => {
         if (c.id !== currentChatId) return c;
-        const last = c.messages[c.messages.length - 1];
-
-        if (!last || last.role !== "assistant") {
-          return {
-            ...c,
-            messages: [...c.messages, { role: "assistant", content: text }],
-          };
-        }
+        const last = c.messages.at(-1);
+        if (!last || last.role !== "assistant") return c;
 
         return {
           ...c,
           messages: [
             ...c.messages.slice(0, -1),
-            { role: "assistant", content: last.content + text },
+            {
+              role: "assistant",
+              response: {
+                ...last.response,
+                text: last.response.text + delta,
+              },
+            },
           ],
         };
       }),
     });
   },
 
-  addCitation: (cit) =>
-    set((s) => ({
-      chats: s.chats.map((c) =>
-        c.id === s.currentChatId
-          ? { ...c, citations: [...c.citations, cit] }
-          : c
-      ),
-    })),
+  addCitationToResponse: (citation) => {
+    const { chats, currentChatId } = get();
+    if (!currentChatId) return;
+
+    set({
+      chats: chats.map((c) => {
+        if (c.id !== currentChatId) return c;
+        const last = c.messages.at(-1);
+        if (!last || last.role !== "assistant") return c;
+
+        return {
+          ...c,
+          messages: [
+            ...c.messages.slice(0, -1),
+            {
+              role: "assistant",
+              response: {
+                ...last.response,
+                citations: [...last.response.citations, citation],
+              },
+            },
+          ],
+        };
+      }),
+    });
+  },
+
+  finalizeAssistantResponse: () =>
+    set({ typing: false, thinkingStage: null }),
+
+  /* ✅ SAFE, STABLE SELECTOR */
+  getCitationById: (id) => {
+    const { chats, currentChatId } = get();
+    const chat = chats.find((c) => c.id === currentChatId);
+    if (!chat) return null;
+
+    for (let i = chat.messages.length - 1; i >= 0; i--) {
+      const m = chat.messages[i];
+      if (m.role === "assistant") {
+        const found = m.response.citations.find((c) => c.id === id);
+        if (found) return found;
+      }
+    }
+    return null;
+  },
 
   setTyping: (v) => set({ typing: v }),
   setThinkingStage: (s) => set({ thinkingStage: s }),
   setDocuments: (d) => set({ documents: d }),
 
-  /* ---------- Pending files ---------- */
-
   addPendingFiles: (files) =>
-    set((s) => ({
-      pendingFiles: [
-        ...s.pendingFiles,
-        ...Array.from(files).map((f) => ({
-          id: crypto.randomUUID(),
-          file: f,
-        })),
-      ],
-    })),
-
-  removePendingFile: (id) =>
-    set((s) => ({
-      pendingFiles: s.pendingFiles.filter((f) => f.id !== id),
-    })),
+    set({
+      pendingFiles: Array.from(files).map((f) => ({
+        id: crypto.randomUUID(),
+        file: f,
+      })),
+    }),
 
   clearPendingFiles: () => set({ pendingFiles: [] }),
 }));

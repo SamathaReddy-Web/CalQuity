@@ -13,11 +13,8 @@ export default function InputBar() {
 
   const {
     addUserMessage,
-    appendAssistantText,
     setTyping,
     setThinkingStage,
-    addCitation,
-    setDocuments,
     pendingFiles,
     addPendingFiles,
     clearPendingFiles,
@@ -31,7 +28,7 @@ export default function InputBar() {
   const sendBtn =
     theme === "dark" ? "bg-white text-black" : "bg-black text-white";
 
-  /* ✅ ONLY STORE FILES LOCALLY */
+  /* 📎 Store files locally only */
   function onSelectFiles(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files) return;
     addPendingFiles(e.target.files);
@@ -62,9 +59,8 @@ export default function InputBar() {
       });
     }
 
-    /* 2️⃣ Store USER message with files */
+    /* 2️⃣ Add USER message */
     addUserMessage({
-      role: "user",
       content: q,
       files: uploaded,
     });
@@ -72,7 +68,7 @@ export default function InputBar() {
     clearPendingFiles();
     setQ("");
 
-    /* 3️⃣ Send to backend */
+    /* 3️⃣ Start backend job */
     setTyping(true);
     setThinkingStage("searching");
 
@@ -87,18 +83,15 @@ export default function InputBar() {
 
     const { job_id } = await res.json();
 
-    connectSSE(job_id, q, uploaded.map((f) => f.doc_id), (event) => {
-      if (!event?.type) return;
-
-      if (event.type === "typing") setTyping(event.content.typing);
-      if (event.type === "text") appendAssistantText(event.content);
-      if (event.type === "citation") addCitation(event.content);
-    });
+    /* 4️⃣ Start SSE stream (assistant handled internally) */
+    connectSSE(job_id, q, uploaded.map((f) => f.doc_id));
   }
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${surface}`}>
+      <div
+        className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${surface}`}
+      >
         <button onClick={() => fileRef.current?.click()} className="text-lg">
           📎
         </button>

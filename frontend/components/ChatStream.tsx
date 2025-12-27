@@ -4,11 +4,16 @@ import { useChatStore } from "@/store/chatStore";
 import { useThemeStore } from "@/store/themeStore";
 import Citation from "./Citation";
 
+/* --------------------------------------------------
+   ChatStream
+-------------------------------------------------- */
+
 export default function ChatStream() {
   const chats = useChatStore((s) => s.chats);
   const currentChatId = useChatStore((s) => s.currentChatId);
   const typing = useChatStore((s) => s.typing);
   const thinkingStage = useChatStore((s) => s.thinkingStage);
+
   const theme = useThemeStore((s) => s.theme);
 
   const chat = currentChatId
@@ -17,6 +22,7 @@ export default function ChatStream() {
 
   const messages = chat?.messages ?? [];
 
+  /* ---------- Stage text ---------- */
   const stageText =
     thinkingStage === "searching"
       ? "🔍 Searching documents"
@@ -26,7 +32,7 @@ export default function ChatStream() {
       ? "✍️ Generating answer"
       : null;
 
-  /* 🎨 Theme tokens */
+  /* ---------- Theme tokens ---------- */
   const userBubble =
     theme === "dark"
       ? "bg-neutral-800 text-neutral-100"
@@ -40,21 +46,15 @@ export default function ChatStream() {
   const mutedText =
     theme === "dark" ? "text-neutral-400" : "text-neutral-500";
 
-    function normalizeText(content: any): string {
-    if (typeof content === "string") return content;
-    if (typeof content === "object" && typeof content?.content === "string") {
-      return content.content;
+  /* --------------------------------------------------
+     Render assistant streamed text + citations
+  -------------------------------------------------- */
+  function renderAssistantText(text: string) {
+    if (!text.trim()) {
+      return <span className={mutedText}>Thinking…</span>;
     }
-    return "";
-  }
 
-  /* ---------- Assistant rendering ---------- */
-  function renderAssistant(content: string) {
-    // if (!content.trim()) {
-    //   return <span className={mutedText}>Thinking…</span>;
-    // }
-
-    const lines = content
+    const lines = text
       .split(/\n+/)
       .map((l) => l.trim())
       .filter(Boolean);
@@ -80,7 +80,9 @@ export default function ChatStream() {
     );
   }
 
-  /* ---------- File attachment rendering ---------- */
+  /* --------------------------------------------------
+     Render attached files (user message)
+  -------------------------------------------------- */
   function renderFiles(files: any[]) {
     return (
       <div className="mb-3 space-y-2">
@@ -103,8 +105,7 @@ export default function ChatStream() {
             <div className="flex-1 overflow-hidden">
               <div className="font-medium truncate">{f.filename}</div>
               <div className={`text-xs ${mutedText}`}>
-                {f.pages ? `${f.pages} pages` : "PDF document"}
-                {f.size && ` • ${(f.size / 1024).toFixed(1)} KB`}
+                {f.pages} pages • {(f.size / 1024).toFixed(1)} KB
               </div>
             </div>
           </div>
@@ -113,12 +114,13 @@ export default function ChatStream() {
     );
   }
 
+  /* --------------------------------------------------
+     MAIN RENDER
+  -------------------------------------------------- */
   return (
     <div className="space-y-12 px-6 max-w-3xl mx-auto">
       {messages.map((m, i) => {
         const isUser = m.role === "user";
-
-        const text = normalizeText(m.content);
 
         return (
           <div
@@ -134,21 +136,22 @@ export default function ChatStream() {
                 text-[15.5px] leading-7
               `}
             >
-              {/* 📎 FILE ATTACHMENTS */}
-              {Array.isArray((m as any).files) &&
-                (m as any).files.length > 0 &&
-                renderFiles((m as any).files)}
+              {/* 📎 USER FILES */}
+              {isUser &&
+                Array.isArray(m.files) &&
+                m.files.length > 0 &&
+                renderFiles(m.files)}
 
-              {/* 💬 MESSAGE CONTENT */}
+              {/* 💬 MESSAGE */}
               {m.role === "assistant"
-                ? renderAssistant(text)
-                : text}
+                ? renderAssistantText(m.response.text)
+                : m.content}
             </div>
           </div>
         );
       })}
 
-      {/* ⏳ TYPING STATE */}
+      {/* ⏳ TYPING INDICATOR */}
       {typing && stageText && (
         <div
           className={`flex items-center gap-2 text-xs ${mutedText} animate-pulse`}

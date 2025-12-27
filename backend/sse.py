@@ -6,37 +6,42 @@ from llm import llm_only_answer, llm_with_context
 from pdf_utils import DOCUMENTS
 
 
-def sse(event_type: str, content: dict):
-    return f"data: {json.dumps({'type': event_type, 'content': content})}\n\n"
+def sse(event_type: str, content=None):
+    payload = {"type": event_type}
+    if content is not None:
+        payload["content"] = content
+    return f"data: {json.dumps(payload)}\n\n"
+
+
+async def stream_text(text: str, delay: float = 0.015):
+    """
+    Streams text word-by-word for typing effect
+    """
+    for token in text.split(" "):
+        yield sse("text_delta", token + " ")
+        await asyncio.sleep(delay)
 
 
 async def event_generator(query: str, doc_ids: list[str] | None):
-    print("QUERY:", query)
-    print("DOC IDS RECEIVED:", doc_ids)
-
-    yield sse("typing", {"typing": True})
-    yield sse("tool", {"message": "🔍 Processing request"})
-    await asyncio.sleep(0.2)
+    # ---------- START ----------
+    yield sse("start")
+    await asyncio.sleep(0.1)
 
     # =====================================================
-    # CASE 1: FILES SELECTED → FORCE DOCUMENT CONTEXT
+    # CASE 1: DOCUMENT CONTEXT (FORCED CITATIONS)
     # =====================================================
     if doc_ids:
-        print("FILES SELECTED → USING DOCUMENT CONTEXT")
-
         context_lines: list[str] = []
         citations: list[dict] = []
         cid = 1
 
         for doc_id in doc_ids:
             doc = DOCUMENTS.get(doc_id)
-
             if not doc:
-                print("⚠️ DOC NOT FOUND:", doc_id)
                 continue
 
             for page_no, sentences in doc["pages"].items():
-                for sentence in sentences[:4]:  # safe cap per page
+                for sentence in sentences[:3]:
                     context_lines.append(f"[{cid}] {sentence}")
                     citations.append({
                         "id": cid,
@@ -45,38 +50,57 @@ async def event_generator(query: str, doc_ids: list[str] | None):
                         "quote": sentence,
                     })
                     cid += 1
-                break  # only first page per doc
+                break  # first page only
+            break  # first document only (for now)
 
-            break  # only first document (for now)
-
-        print("CONTEXT SIZE:", len(context_lines))
-
-        # ❗ SAFETY CHECK
+        # ---------- SAFETY: EMPTY CONTEXT ----------
         if not context_lines:
-            print("⚠️ EMPTY CONTEXT — FALLING BACK TO LLM ONLY")
             answer = llm_only_answer(query)
-            yield sse("text", {"content": answer})
-            yield sse("typing", {"typing": False})
+            async for chunk in stream_text(answer):
+                yield chunk
+            yield sse("done")
             return
 
-        answer = llm_with_context(query, "\n".join(context_lines))
+        # ---------- 🔴 CRITICAL CHANGE: CITATION ENFORCEMENT ----------
+        prompt = f"""
+You are answering using the numbered sources below.
 
-        yield sse("text", {"content": answer})
+RULES:
+- Use ONLY the information from the sources.
+- Whenever you use a fact, MUST include its citation number inline.
+- Citation format must be exactly like [1], [2], etc.
+- Do NOT invent citations.
+- Do NOT put citations only at the end; they must appear in the sentence.
 
+Sources:
+{chr(10).join(context_lines)}
+
+Question:
+{query}
+"""
+
+        answer = llm_with_context(query, prompt)
+
+        # ---------- STREAM ANSWER ----------
+        async for chunk in stream_text(answer):
+            yield chunk
+
+        # ---------- SEND CITATION METADATA ----------
         for c in citations:
             yield sse("citation", c)
 
-        yield sse("typing", {"typing": False})
+        yield sse("done")
         return
 
     # =====================================================
-    # CASE 2: NO FILES → NORMAL CHAT
+    # CASE 2: NO DOCUMENTS → NORMAL CHAT
     # =====================================================
-    print("NO FILES → NORMAL CHAT")
-
     answer = llm_only_answer(query)
-    yield sse("text", {"content": answer})
-    yield sse("typing", {"typing": False})
+
+    async for chunk in stream_text(answer):
+        yield chunk
+
+    yield sse("done")
 
 
 def sse_response(query: str, doc_ids: list[str] | None):
