@@ -2,55 +2,58 @@
 
 import ChatStream from "./ChatStream";
 import InputBar from "./InputBar";
-import EmptyState from "./EmptyState";
 import PendingFilesBar from "./PendingFilesBar";
+import dynamic from "next/dynamic";
 
 import { useChatStore } from "@/store/chatStore";
 import { useThemeStore } from "@/store/themeStore";
+import { motion, AnimatePresence } from "framer-motion";
+
+const PdfViewer = dynamic(() => import("./PdfViewer"), {
+  ssr: false,
+});
 
 export default function ChatArea() {
-  const chats = useChatStore((s) => s.chats);
-  const currentChatId = useChatStore((s) => s.currentChatId);
+  const viewerOpen = useChatStore((s) => s.viewerOpen);
   const theme = useThemeStore((s) => s.theme);
 
-  const currentChat =
-    currentChatId
-      ? chats.find((c) => c.id === currentChatId)
-      : null;
-
-  const messages = currentChat?.messages ?? [];
-  const showEmpty = messages.length === 0;
-
-  /* 🎨 Theme tokens */
-  const surface =
+  const bg =
     theme === "dark"
       ? "bg-neutral-950 text-neutral-100"
       : "bg-neutral-50 text-neutral-900";
 
-  const inputBg =
-    theme === "dark"
-      ? "bg-neutral-950 border-neutral-800"
-      : "bg-neutral-50 border-neutral-200";
-
   return (
-    <main className={`flex-1 flex flex-col h-full ${surface}`}>
-      {/* CHAT CONTENT */}
-      <div className="flex-1 overflow-y-auto px-6 py-10">
-        <div className="mx-auto max-w-3xl space-y-10">
-          {showEmpty ? <EmptyState /> : <ChatStream />}
+    <main className={`h-screen flex overflow-hidden ${bg}`}>
+      {/* Chat */}
+      <motion.div
+        animate={{ width: viewerOpen ? "60%" : "100%" }}
+        transition={{ duration: 0.35, ease: "easeInOut" }}
+        className="flex flex-col h-full"
+      >
+        <div className="flex-1 overflow-y-auto px-6 py-10">
+          <ChatStream />
         </div>
-      </div>
 
-      {/* INPUT AREA */}
-      <div className={`sticky bottom-0 pt-3 pb-5 border-t ${inputBg}`}>
-        <div className="mx-auto max-w-3xl">
-          {/* 🧷 FILES SELECTED BUT NOT SENT */}
+        <div className="border-t p-4">
           <PendingFilesBar />
-
-          {/* ✍️ INPUT */}
           <InputBar />
         </div>
-      </div>
+      </motion.div>
+
+      {/* PDF Viewer */}
+      <AnimatePresence>
+        {viewerOpen && (
+          <motion.div
+            initial={{ x: "100%", opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: "100%", opacity: 0 }}
+            transition={{ duration: 0.35, ease: "easeInOut" }}
+            className="w-[40%] h-full"
+          >
+            <PdfViewer />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }

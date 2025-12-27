@@ -71,11 +71,11 @@ type ChatState = {
   documents: DocumentMeta[];
   pendingFiles: PendingFile[];
 
-  /* viewer */
+  /* PDF Viewer */
   activeCitation: Citation | null;
   viewerOpen: boolean;
 
-  /* actions */
+  /* ---------- CHAT ---------- */
   startNewChat: () => void;
   ensureChatExists: () => void;
   addUserMessage: (msg: {
@@ -83,32 +83,45 @@ type ChatState = {
     files?: FileAttachment[];
   }) => void;
 
+  /* ---------- ASSISTANT STREAM ---------- */
   startAssistantResponse: () => void;
   appendAssistantDelta: (delta: string) => void;
   addCitationToResponse: (citation: Citation) => void;
   finalizeAssistantResponse: () => void;
 
-  /* 🔑 STABLE SELECTOR */
+  /* ---------- CITATION SELECTOR ---------- */
   getCitationById: (id: number) => Citation | null;
 
-  /* misc */
+  /* ---------- VIEWER ---------- */
+  openPdfViewer: (citation: Citation) => void;
+  closePdfViewer: () => void;
+
+  /* ---------- STATE ---------- */
   setTyping: (v: boolean) => void;
   setThinkingStage: (s: ThinkingStage) => void;
   setDocuments: (d: DocumentMeta[]) => void;
 
+  /* ---------- FILES ---------- */
   addPendingFiles: (files: FileList) => void;
   clearPendingFiles: () => void;
 };
 
+/* ===================== STORE ===================== */
+
 export const useChatStore = create<ChatState>((set, get) => ({
   chats: [],
   currentChatId: null,
+
   typing: false,
   thinkingStage: null,
+
   documents: [],
   pendingFiles: [],
+
   activeCitation: null,
   viewerOpen: false,
+
+  /* ---------- CHAT ---------- */
 
   ensureChatExists: () => {
     if (!get().currentChatId) get().startNewChat();
@@ -119,6 +132,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({
       chats: [{ id, title: "New chat", messages: [] }],
       currentChatId: id,
+      typing: false,
+      thinkingStage: null,
+      activeCitation: null,
+      viewerOpen: false,
     });
   },
 
@@ -131,12 +148,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
         c.id === currentChatId
           ? {
               ...c,
+              title:
+                c.messages.length === 0
+                  ? content.slice(0, 40)
+                  : c.title,
               messages: [...c.messages, { role: "user", content, files }],
             }
           : c
       ),
     });
   },
+
+  /* ---------- ASSISTANT STREAM ---------- */
 
   startAssistantResponse: () => {
     const { chats, currentChatId } = get();
@@ -223,7 +246,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   finalizeAssistantResponse: () =>
     set({ typing: false, thinkingStage: null }),
 
-  /* ✅ SAFE, STABLE SELECTOR */
+  /* ---------- SAFE CITATION SELECTOR ---------- */
+
   getCitationById: (id) => {
     const { chats, currentChatId } = get();
     const chat = chats.find((c) => c.id === currentChatId);
@@ -239,9 +263,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
     return null;
   },
 
+  /* ---------- PDF VIEWER ---------- */
+
+  openPdfViewer: (citation) =>
+    set({
+      activeCitation: citation,
+      viewerOpen: true,
+    }),
+
+  closePdfViewer: () =>
+    set({
+      activeCitation: null,
+      viewerOpen: false,
+    }),
+
+  /* ---------- STATE ---------- */
+
   setTyping: (v) => set({ typing: v }),
   setThinkingStage: (s) => set({ thinkingStage: s }),
   setDocuments: (d) => set({ documents: d }),
+
+  /* ---------- FILES ---------- */
 
   addPendingFiles: (files) =>
     set({
