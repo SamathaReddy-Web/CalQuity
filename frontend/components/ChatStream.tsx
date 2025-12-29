@@ -4,16 +4,11 @@ import { useChatStore } from "@/store/chatStore";
 import { useThemeStore } from "@/store/themeStore";
 import Citation from "./Citation";
 
-/* --------------------------------------------------
-   ChatStream
--------------------------------------------------- */
-
 export default function ChatStream() {
   const chats = useChatStore((s) => s.chats);
   const currentChatId = useChatStore((s) => s.currentChatId);
   const typing = useChatStore((s) => s.typing);
   const thinkingStage = useChatStore((s) => s.thinkingStage);
-
   const theme = useThemeStore((s) => s.theme);
 
   const chat = currentChatId
@@ -25,11 +20,11 @@ export default function ChatStream() {
   /* ---------- Stage text ---------- */
   const stageText =
     thinkingStage === "searching"
-      ? "🔍 Searching documents"
+      ? "Searching documents"
       : thinkingStage === "analyzing"
-      ? "🧠 Analyzing context"
+      ? "Analyzing context"
       : thinkingStage === "answering"
-      ? "✍️ Generating answer"
+      ? "Generating answer"
       : null;
 
   /* ---------- Theme tokens ---------- */
@@ -41,31 +36,29 @@ export default function ChatStream() {
   const assistantBubble =
     theme === "dark"
       ? "bg-neutral-900 text-neutral-100"
-      : "bg-white text-neutral-900";
+      : "bg-white text-neutral-900 border border-neutral-200";
 
   const mutedText =
     theme === "dark" ? "text-neutral-400" : "text-neutral-500";
 
-  /* --------------------------------------------------
-     Render assistant streamed text + citations
-  -------------------------------------------------- */
+  /* ---------- Assistant text renderer ---------- */
   function renderAssistantText(text: string) {
     if (!text.trim()) {
       return <span className={mutedText}>Thinking…</span>;
     }
 
-    const lines = text
+    const paragraphs = text
       .split(/\n+/)
-      .map((l) => l.trim())
+      .map((p) => p.trim())
       .filter(Boolean);
 
     return (
-      <ul className="space-y-2 list-disc pl-5">
-        {lines.map((line, i) => {
-          const parts = line.split(/(\[\d+\])/g);
+      <div className="space-y-3">
+        {paragraphs.map((para, i) => {
+          const parts = para.split(/(\[\d+\])/g);
 
           return (
-            <li key={i} className="leading-7">
+            <div key={i} className="leading-7">
               {parts.map((p, idx) => {
                 const match = p.match(/\[(\d+)\]/);
                 if (match) {
@@ -73,16 +66,14 @@ export default function ChatStream() {
                 }
                 return <span key={idx}>{p}</span>;
               })}
-            </li>
+            </div>
           );
         })}
-      </ul>
+      </div>
     );
   }
 
-  /* --------------------------------------------------
-     Render attached files (user message)
-  -------------------------------------------------- */
+  /* ---------- User file attachments ---------- */
   function renderFiles(files: any[]) {
     return (
       <div className="mb-3 space-y-2">
@@ -114,11 +105,9 @@ export default function ChatStream() {
     );
   }
 
-  /* --------------------------------------------------
-     MAIN RENDER
-  -------------------------------------------------- */
+  /* ---------- MAIN ---------- */
   return (
-    <div className="space-y-12 px-6 max-w-3xl mx-auto">
+    <div className="space-y-6 px-6 max-w-3xl mx-auto">
       {messages.map((m, i) => {
         const isUser = m.role === "user";
 
@@ -129,20 +118,20 @@ export default function ChatStream() {
           >
             <div
               className={`
-                max-w-[80%]
+                max-w-[75%]
                 rounded-2xl px-6 py-4
                 shadow-sm
                 ${isUser ? userBubble : assistantBubble}
-                text-[15.5px] leading-7
+                text-[15.5px]
               `}
             >
-              {/* 📎 USER FILES */}
+              {/* 📎 User files */}
               {isUser &&
                 Array.isArray(m.files) &&
                 m.files.length > 0 &&
                 renderFiles(m.files)}
 
-              {/* 💬 MESSAGE */}
+              {/* 💬 Message */}
               {m.role === "assistant"
                 ? renderAssistantText(m.response.text)
                 : m.content}
@@ -151,12 +140,10 @@ export default function ChatStream() {
         );
       })}
 
-      {/* ⏳ TYPING INDICATOR */}
+      {/* ⏳ Typing indicator */}
       {typing && stageText && (
-        <div
-          className={`flex items-center gap-2 text-xs ${mutedText} animate-pulse`}
-        >
-          <span className="w-2 h-2 rounded-full bg-neutral-400 animate-bounce" />
+        <div className={`flex items-center gap-2 text-xs ${mutedText} pl-2`}>
+          <span className="w-2 h-2 rounded-full bg-neutral-400 animate-pulse" />
           <span>{stageText}…</span>
         </div>
       )}

@@ -27,11 +27,22 @@ import { useChatStore } from "@/store/chatStore";
   }
 */
 
+let activeEventSource: EventSource | null = null;
+
+/* ================================
+   CONNECT SSE
+================================ */
 export function connectSSE(
   jobId: string,
   query: string,
   docIds: string[]
 ) {
+  // Close any existing stream
+  if (activeEventSource) {
+    activeEventSource.close();
+    activeEventSource = null;
+  }
+
   const params = new URLSearchParams({
     query,
     doc_ids: docIds.join(","),
@@ -51,13 +62,19 @@ export function connectSSE(
     `http://127.0.0.1:8000/stream/${jobId}?${params.toString()}`
   );
 
+  activeEventSource = es;
+
+  /* ---- OPEN ---- */
   es.onopen = () => {
     setTyping(true);
     setThinkingStage("answering");
     startAssistantResponse();
   };
 
+  /* ---- MESSAGE ---- */
   es.onmessage = (event) => {
+    if (!event.data) return;
+
     try {
       const data = JSON.parse(event.data);
 
@@ -76,21 +93,54 @@ export function connectSSE(
 
         case "done":
           finalizeAssistantResponse();
-          es.close();
+          cleanup();
           break;
 
         default:
           break;
       }
-    } catch (e) {
-      console.error("SSE parse error", e);
+    } catch (err) {
+      console.error("SSE parse error", err);
     }
   };
 
+  /* ---- ERROR ---- */
   es.onerror = () => {
     finalizeAssistantResponse();
-    es.close();
+    cleanup();
   };
 
   return es;
+}
+
+/* ================================
+   STOP STREAM (ChatGPT-style ⏹)
+================================ */
+export function stopSSE() {
+  const {
+    finalizeAssistantResponse,
+    setTyping,
+    setThinkingStage,
+  } = useChatStore.getState();
+
+  if (activeEventSource) {
+    activeEventSource.close();
+    activeEventSource = null;
+  }
+
+  setTyping(false);
+  setThinkingStage(null);
+  finalizeAssistantResponse();
+}
+
+
+function cleanup() {
+  if (activeEventSource) {
+    activeEventSource.close();
+    activeEventSource = null;
+  }
+
+  const { setTyping, setThinkingStage } = useChatStore.getState();
+  setTyping(false);
+  setThinkingStage(null);
 }

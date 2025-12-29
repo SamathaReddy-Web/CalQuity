@@ -11,52 +11,88 @@ export default function Sidebar() {
   const theme = useThemeStore((s) => s.theme);
 
   const bg =
-    theme === "dark" ? "bg-neutral-950 border-neutral-800" : "bg-white border-neutral-200";
+    theme === "dark"
+      ? "bg-neutral-950 border-neutral-800 text-neutral-100"
+      : "bg-white border-neutral-200 text-neutral-900";
 
-  const item =
+  const hover =
     theme === "dark"
       ? "hover:bg-neutral-900"
       : "hover:bg-neutral-100";
 
   const active =
     theme === "dark"
-      ? "bg-neutral-900"
-      : "bg-neutral-200";
+      ? "bg-neutral-900 ring-1 ring-neutral-700"
+      : "bg-neutral-200 ring-1 ring-neutral-300";
+
+  const muted =
+    theme === "dark" ? "text-neutral-400" : "text-neutral-500";
 
   return (
     <aside className={`w-64 border-r flex flex-col ${bg}`}>
-      <div className="p-4 border-b border-neutral-200">
+      {/* ===== HEADER (aligns with app header height) ===== */}
+      <div className="h-14 px-4 flex items-center border-b border-inherit">
         <button
           onClick={startNewChat}
-          className={`w-full px-3 py-2 rounded-lg text-sm ${item}`}
+          className={`
+            w-full flex items-center justify-center gap-2
+            px-3 py-2 rounded-lg text-sm font-medium
+            transition ${hover}
+          `}
         >
-          ➕ New chat
+          <span className="text-lg leading-none">＋</span>
+          <span>New chat</span>
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {chats.map((c) => (
-          <button
-            key={c.id}
-            onClick={() => switchChat(c.id)}
-            className={`
-              w-full text-left px-3 py-2 rounded-lg text-sm truncate
-              ${c.id === currentChatId ? active : item}
-            `}
-          >
-            💬 {c.title}
-          </button>
-        ))}
+      {/* ===== CHAT LIST ===== */}
+      <div className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
+        {chats.map((c) => {
+          const isActive = c.id === currentChatId;
+
+          return (
+            <button
+              key={c.id}
+              onClick={() => switchChat(c.id)}
+              className={`
+                w-full flex items-center gap-2
+                px-3 py-2 rounded-lg text-sm truncate
+                transition
+                ${isActive ? active : hover}
+              `}
+            >
+              <span
+                className={`
+                  text-base
+                  ${isActive ? "opacity-90" : "opacity-60"}
+                `}
+              >
+                💬
+              </span>
+
+              <span className="truncate">
+                {c.title || "Untitled chat"}
+              </span>
+            </button>
+          );
+        })}
 
         {chats.length === 0 && (
-          <div className="text-xs text-neutral-400 p-3">
+          <div className={`px-3 py-4 text-xs ${muted}`}>
             No chats yet
           </div>
         )}
       </div>
 
-      <div className="p-3 text-xs text-neutral-500 border-t border-neutral-200">
-        CalQuity
+      {/* ===== FOOTER ===== */}
+      <div
+        className={`
+          h-12 px-4 flex items-center
+          text-xs ${muted}
+          border-t border-inherit
+        `}
+      >
+        CalQuity AI
       </div>
     </aside>
   );

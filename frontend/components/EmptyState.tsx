@@ -7,7 +7,7 @@ import { useThemeStore } from "@/store/themeStore";
 const ACTIONS = [
   { title: "Summarize PDFs", prompt: "Summarize the uploaded documents", icon: "🧾" },
   { title: "Find information", prompt: "Find key information", icon: "🔍" },
-  { title: "Explain concept", prompt: "Explain the main concept", icon: "🧠" },
+  { title: "Explain concepts", prompt: "Explain the main concept", icon: "🧠" },
   { title: "Compare data", prompt: "Compare important points", icon: "📊" },
 ];
 
@@ -24,7 +24,7 @@ export default function EmptyState() {
   }, []);
 
   function sendPrompt(p: string) {
-    addUserMessage(p);
+    addUserMessage({ content: p });
     setTyping(true);
 
     const updated = [p, ...recent.filter((x) => x !== p)].slice(0, 3);
@@ -32,30 +32,40 @@ export default function EmptyState() {
     localStorage.setItem("recent-prompts", JSON.stringify(updated));
   }
 
-  const cardBg =
-    theme === "dark" ? "bg-neutral-900 hover:bg-neutral-800" : "bg-neutral-100 hover:bg-neutral-200";
+  const card =
+    theme === "dark"
+      ? "bg-neutral-900 hover:bg-neutral-800 border-neutral-800"
+      : "bg-neutral-100 hover:bg-neutral-200 border-neutral-200";
 
-  const chipBg =
-    theme === "dark" ? "bg-neutral-800 hover:bg-neutral-700" : "bg-neutral-200 hover:bg-neutral-300";
+  const chip =
+    theme === "dark"
+      ? "bg-neutral-800 hover:bg-neutral-700"
+      : "bg-neutral-200 hover:bg-neutral-300";
 
   return (
     <div className="absolute inset-0 flex items-center justify-center px-6">
-      <div className="max-w-2xl w-full text-center space-y-10">
-        <h1 className="text-3xl font-semibold">
-          What do you want to explore?
-        </h1>
+      <div className="max-w-2xl w-full space-y-10">
+        {/* Header */}
+        <div className="text-center space-y-2">
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Ask your documents anything
+          </h1>
+          <p className="text-sm text-neutral-500">
+            Upload PDFs and get cited, AI-powered answers
+          </p>
+        </div>
 
+        {/* Action cards */}
         <div className="grid sm:grid-cols-2 gap-4">
           {ACTIONS.map((a) => (
             <button
               key={a.title}
               onClick={() => sendPrompt(a.prompt)}
               className={`
-                text-left p-5 rounded-2xl
-                ${cardBg}
-                hover:scale-[1.02]
+                p-5 rounded-2xl text-left border
                 transition-all duration-200
-                shadow-sm hover:shadow-md
+                hover:scale-[1.02]
+                ${card}
               `}
             >
               <div className="flex gap-4 items-start">
@@ -71,15 +81,21 @@ export default function EmptyState() {
           ))}
         </div>
 
+        {/* Recent prompts */}
         {recent.length > 0 && (
-          <div className="text-left">
-            <div className="text-xs text-neutral-400 mb-2">Recent</div>
-            <div className="flex gap-2 flex-wrap">
+          <div>
+            <div className="text-xs text-neutral-400 mb-2">
+              Recent
+            </div>
+            <div className="flex flex-wrap gap-2">
               {recent.map((r, i) => (
                 <button
                   key={i}
                   onClick={() => sendPrompt(r)}
-                  className={`px-3 py-1 rounded-full text-xs ${chipBg} transition`}
+                  className={`
+                    px-3 py-1 rounded-full text-xs transition
+                    ${chip}
+                  `}
                 >
                   {r}
                 </button>

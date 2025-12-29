@@ -12,25 +12,30 @@ export default function PendingFilesBar() {
 
   const surface =
     theme === "dark"
-      ? "bg-neutral-900 border-neutral-800"
-      : "bg-neutral-100 border-neutral-300";
+      ? "bg-neutral-900 border-neutral-800 text-neutral-100"
+      : "bg-neutral-100 border-neutral-300 text-neutral-900";
 
   const muted =
     theme === "dark" ? "text-neutral-400" : "text-neutral-600";
 
   return (
-    <div className="flex flex-wrap gap-2 mb-3">
+    <div className="mb-3 flex flex-wrap gap-2">
       {pendingFiles.map((pf) => {
         const sizeKB = (pf.file.size / 1024).toFixed(1);
 
         return (
           <div
             key={pf.id}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm ${surface}`}
+            className={`
+              flex items-center gap-3
+              px-3 py-2 rounded-lg border
+              text-sm shadow-sm
+              ${surface}
+            `}
           >
-            <span className="text-lg">📄</span>
+            <span className="text-base opacity-70">📄</span>
 
-            <div className="max-w-[160px] truncate">
+            <div className="max-w-[180px] truncate">
               <div className="font-medium truncate">
                 {pf.file.name}
               </div>
@@ -41,7 +46,10 @@ export default function PendingFilesBar() {
 
             <button
               onClick={() => removePendingFile(pf.id)}
-              className="ml-1 text-xs opacity-60 hover:opacity-100"
+              className="
+                ml-1 text-xs opacity-50
+                hover:opacity-100 transition
+              "
               title="Remove file"
             >
               ✕

@@ -6,17 +6,21 @@ export default function ThemeToggle() {
   const theme = useThemeStore((s) => s.theme);
   const toggle = useThemeStore((s) => s.toggle);
 
-  const btn =
+  const base =
+    "h-9 w-9 flex items-center justify-center rounded-full transition";
+
+  const style =
     theme === "dark"
-      ? "bg-neutral-800 text-neutral-100"
-      : "bg-neutral-200 text-neutral-900";
+      ? "bg-neutral-800 text-neutral-100 hover:bg-neutral-700"
+      : "bg-neutral-200 text-neutral-900 hover:bg-neutral-300";
 
   return (
     <button
       onClick={toggle}
-      className={`px-3 py-2 rounded-md transition ${btn}`}
+      aria-label="Toggle theme"
+      className={`${base} ${style}`}
     >
-      {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
+      {theme === "dark" ? "🌙" : "☀️"}
     </button>
   );
 }
