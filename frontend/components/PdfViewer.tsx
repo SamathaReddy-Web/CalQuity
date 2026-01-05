@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { Worker, Viewer } from "@react-pdf-viewer/core";
 import { searchPlugin } from "@react-pdf-viewer/search";
 
@@ -11,7 +11,7 @@ import { useChatStore } from "@/store/chatStore";
 import { useThemeStore } from "@/store/themeStore";
 
 /* ---------------------------------------------
-   🔍 Sentence normalization
+   Normalize sentence → stable keyword
 --------------------------------------------- */
 function normalizeSentence(text: string): string {
   return text
@@ -21,91 +21,84 @@ function normalizeSentence(text: string): string {
     .trim();
 }
 
-export default function PdfViewer({ visible }: { visible: boolean }) {
+export default function PdfViewer() {
+  /* 🔴 ALL HOOKS MUST BE AT TOP — NO EARLY RETURN */
   const citation = useChatStore((s) => s.activeCitation);
   const close = useChatStore((s) => s.closePdfViewer);
   const theme = useThemeStore((s) => s.theme);
 
-  /* 🔑 Plugin created ONCE */
-  const searchPluginRef = useRef(
-    searchPlugin({
-      highlightKeyword: true,
-    })
-  );
+  /* 🔑 Create plugin ONCE PER MOUNT */
+  const searchPluginInstance = searchPlugin({
+    keyword: citation ? normalizeSentence(citation.quote) : "",
+    highlightKeyword: true,
+  });
 
-  const searchPluginInstance = searchPluginRef.current;
+  const { jumpToMatch } = searchPluginInstance;
 
-  /* 🔦 Highlight + jump */
+  /* 🎯 Jump after text layer is ready */
   useEffect(() => {
     if (!citation) return;
 
-    const keyword = normalizeSentence(citation.quote);
-    searchPluginInstance.setKeyword(keyword);
-
     const t = setTimeout(() => {
-      searchPluginInstance.jumpToMatch(0);
+      jumpToMatch(0);
     }, 500);
 
     return () => clearTimeout(t);
-  }, [citation, searchPluginInstance]);
+  }, [citation, jumpToMatch]);
+
+  /* Safe guard AFTER hooks */
+  if (!citation) return null;
 
   const panel =
     theme === "dark"
-      ? "bg-neutral-950 text-neutral-100"
-      : "bg-white text-neutral-900";
+      ? "bg-neutral-950 text-neutral-100 border-neutral-800"
+      : "bg-white text-neutral-900 border-neutral-200";
 
   const muted =
     theme === "dark" ? "text-neutral-400" : "text-neutral-500";
 
+  const pdfUrl = `http://127.0.0.1:8000/uploads/${citation.doc_id}.pdf`;
+
   return (
-    <aside
-      className={`
-        h-full flex flex-col
-        transition-opacity duration-300
-        ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}
-        ${panel}
-      `}
-    >
-      {!citation ? (
-        <div className="flex-1 flex items-center justify-center text-sm text-neutral-400">
-          Select a citation to view the document
+    <aside className={`h-full flex flex-col border-l ${panel}`}>
+      {/* HEADER */}
+      <header className="h-14 px-4 flex items-center justify-between border-b border-inherit">
+        <div>
+          <div className="text-sm font-medium">Source document</div>
+          <div className={`text-xs ${muted}`}>
+            Page {citation.page}
+          </div>
         </div>
-      ) : (
-        <>
-          {/* HEADER */}
-          <header className="h-14 px-4 flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800">
-            <div>
-              <div className="text-sm font-medium">Source document</div>
-              <div className={`text-xs ${muted}`}>
-                Page {citation.page}
-              </div>
-            </div>
 
-            <button
-              onClick={close}
-              className="h-8 px-3 rounded-md text-xs font-medium border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
-            >
-              ✕
-            </button>
-          </header>
+        <button
+          onClick={close}
+          className="
+            h-8 px-3 rounded-md text-xs font-medium
+            border border-neutral-300 dark:border-neutral-700
+            hover:bg-neutral-100 dark:hover:bg-neutral-900
+            transition
+          "
+        >
+          ✕
+        </button>
+      </header>
 
-          {/* QUOTE */}
-          <div className={`px-4 py-2 text-xs italic border-b ${muted}`}>
-            “{citation.quote}”
-          </div>
+      {/* QUOTE */}
+      <div className={`px-4 py-2 text-xs italic border-b border-inherit ${muted}`}>
+        “{citation.quote}”
+      </div>
 
-          {/* PDF */}
-          <div className="flex-1 overflow-hidden">
-            <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
-              <Viewer
-                fileUrl={`http://127.0.0.1:8000/uploads/${citation.doc_id}.pdf`}
-                initialPage={Math.max(citation.page - 1, 0)}
-                plugins={[searchPluginInstance]}
-              />
-            </Worker>
-          </div>
-        </>
-      )}
+      {/* PDF */}
+      <div className="flex-1 overflow-hidden">
+        <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
+          <Viewer
+            key={`${citation.doc_id}-${citation.page}`}
+            fileUrl={pdfUrl}
+            initialPage={Math.max(citation.page - 1, 0)}
+            plugins={[searchPluginInstance]}
+          />
+        </Worker>
+      </div>
     </aside>
   );
 }
