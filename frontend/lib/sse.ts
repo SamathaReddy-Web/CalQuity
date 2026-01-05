@@ -1,32 +1,5 @@
 import { useChatStore } from "@/store/chatStore";
 
-/*
-  SSE event protocol (expected):
-
-  {
-    type: "start"
-  }
-
-  {
-    type: "text_delta",
-    content: "partial text"
-  }
-
-  {
-    type: "citation",
-    content: { id, doc_id, page, quote }
-  }
-
-  {
-    type: "ui_block",
-    content: { type: "chart" | "table" | "card", data }
-  }
-
-  {
-    type: "done"
-  }
-*/
-
 let activeEventSource: EventSource | null = null;
 
 /* ================================
@@ -37,7 +10,6 @@ export function connectSSE(
   query: string,
   docIds: string[]
 ) {
-  // Close any existing stream
   if (activeEventSource) {
     activeEventSource.close();
     activeEventSource = null;
@@ -52,11 +24,14 @@ export function connectSSE(
     startAssistantResponse,
     appendAssistantDelta,
     addCitationToResponse,
-    addUIBlockToResponse,
+    addFollowUpQuestions,
     finalizeAssistantResponse,
     setTyping,
     setThinkingStage,
   } = useChatStore.getState();
+
+  // ✅ CREATE assistant message ONCE
+  startAssistantResponse();
 
   const es = new EventSource(
     `http://127.0.0.1:8000/stream/${jobId}?${params.toString()}`
@@ -68,7 +43,6 @@ export function connectSSE(
   es.onopen = () => {
     setTyping(true);
     setThinkingStage("answering");
-    startAssistantResponse();
   };
 
   /* ---- MESSAGE ---- */
@@ -87,16 +61,13 @@ export function connectSSE(
           addCitationToResponse(data.content);
           break;
 
-        case "ui_block":
-          addUIBlockToResponse(data.content);
+        case "follow_up":
+          addFollowUpQuestions(data.content);
           break;
 
         case "done":
           finalizeAssistantResponse();
           cleanup();
-          break;
-
-        default:
           break;
       }
     } catch (err) {
@@ -114,33 +85,22 @@ export function connectSSE(
 }
 
 /* ================================
-   STOP STREAM (ChatGPT-style ⏹)
+   STOP STREAM (⏹)
 ================================ */
 export function stopSSE() {
-  const {
-    finalizeAssistantResponse,
-    setTyping,
-    setThinkingStage,
-  } = useChatStore.getState();
+  const { finalizeAssistantResponse } = useChatStore.getState();
 
   if (activeEventSource) {
     activeEventSource.close();
     activeEventSource = null;
   }
 
-  setTyping(false);
-  setThinkingStage(null);
   finalizeAssistantResponse();
 }
-
 
 function cleanup() {
   if (activeEventSource) {
     activeEventSource.close();
     activeEventSource = null;
   }
-
-  const { setTyping, setThinkingStage } = useChatStore.getState();
-  setTyping(false);
-  setThinkingStage(null);
 }

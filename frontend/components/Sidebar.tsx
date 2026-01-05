@@ -6,8 +6,11 @@ import { useThemeStore } from "@/store/themeStore";
 export default function Sidebar() {
   const chats = useChatStore((s) => s.chats);
   const currentChatId = useChatStore((s) => s.currentChatId);
+
   const startNewChat = useChatStore((s) => s.startNewChat);
   const switchChat = useChatStore((s) => s.switchChat);
+  const deleteChat = useChatStore((s) => s.deleteChat);
+
   const theme = useThemeStore((s) => s.theme);
 
   const bg =
@@ -30,15 +33,12 @@ export default function Sidebar() {
 
   return (
     <aside className={`w-64 border-r flex flex-col ${bg}`}>
-      {/* ===== HEADER (aligns with app header height) ===== */}
+      {/* ===== HEADER ===== */}
       <div className="h-14 px-4 flex items-center border-b border-inherit">
         <button
           onClick={startNewChat}
-          className={`
-            w-full flex items-center justify-center gap-2
-            px-3 py-2 rounded-lg text-sm font-medium
-            transition ${hover}
-          `}
+          className={`w-full flex items-center justify-center gap-2
+            px-3 py-2 rounded-lg text-sm font-medium transition ${hover}`}
         >
           <span className="text-lg leading-none">＋</span>
           <span>New chat</span>
@@ -51,29 +51,32 @@ export default function Sidebar() {
           const isActive = c.id === currentChatId;
 
           return (
-            <button
+            <div
               key={c.id}
-              onClick={() => switchChat(c.id)}
-              className={`
-                w-full flex items-center gap-2
-                px-3 py-2 rounded-lg text-sm truncate
-                transition
-                ${isActive ? active : hover}
-              `}
+              className={`group flex items-center gap-2
+                px-3 py-2 rounded-lg text-sm truncate transition
+                ${isActive ? active : hover}`}
             >
-              <span
-                className={`
-                  text-base
-                  ${isActive ? "opacity-90" : "opacity-60"}
-                `}
+              <button
+                onClick={() => switchChat(c.id)}
+                className="flex-1 flex items-center gap-2 truncate"
               >
-                💬
-              </span>
+                <span className="opacity-60">💬</span>
+                <span className="truncate">
+                  {c.title || "Untitled chat"}
+                </span>
+              </button>
 
-              <span className="truncate">
-                {c.title || "Untitled chat"}
-              </span>
-            </button>
+              {/* 🗑 Delete */}
+              <button
+                onClick={() => deleteChat(c.id)}
+                className="opacity-0 group-hover:opacity-100
+                  text-xs text-neutral-400 hover:text-red-400"
+                title="Delete chat"
+              >
+                ✕
+              </button>
+            </div>
           );
         })}
 
@@ -86,11 +89,8 @@ export default function Sidebar() {
 
       {/* ===== FOOTER ===== */}
       <div
-        className={`
-          h-12 px-4 flex items-center
-          text-xs ${muted}
-          border-t border-inherit
-        `}
+        className={`h-12 px-4 flex items-center
+          text-xs ${muted} border-t border-inherit`}
       >
         CalQuity AI
       </div>

@@ -4,7 +4,7 @@ import { useChatStore } from "@/store/chatStore";
 import { useThemeStore } from "@/store/themeStore";
 
 export default function PendingFilesBar() {
-  const pendingFiles = useChatStore((s) => s.pendingFiles);
+  const pendingFiles = useChatStore((s) => s.pendingFiles ?? []);
   const removePendingFile = useChatStore((s) => s.removePendingFile);
   const theme = useThemeStore((s) => s.theme);
 
@@ -19,7 +19,7 @@ export default function PendingFilesBar() {
     theme === "dark" ? "text-neutral-400" : "text-neutral-600";
 
   return (
-    <div className="mb-3 flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
       {pendingFiles.map((pf) => {
         const sizeKB = (pf.file.size / 1024).toFixed(1);
 

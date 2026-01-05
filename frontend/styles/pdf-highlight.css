@@ -1,6 +1,16 @@
 .rpv-search__highlight {
-  background-color: rgba(59, 130, 246, 0.35) !important;
+  background-color: rgba(99, 102, 241, 0.35) !important;
+  animation: pulse-highlight 1.4s ease-out;
 }
-.rpv-search__highlight--selected {
-  background-color: rgba(234, 179, 8, 0.5) !important;
+
+@keyframes pulse-highlight {
+  0% {
+    background-color: rgba(99, 102, 241, 0.15);
+  }
+  50% {
+    background-color: rgba(99, 102, 241, 0.6);
+  }
+  100% {
+    background-color: rgba(99, 102, 241, 0.35);
+  }
 }

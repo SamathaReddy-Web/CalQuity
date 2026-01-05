@@ -56,3 +56,27 @@ def llm_with_context(query: str, context: str) -> str:
             "content": f"Context:\n{context}\n\nQuestion:\n{query}"
         },
     ])
+
+def llm_follow_up_questions(query: str, answer: str) -> list[str]:
+    prompt = f"""
+Based on the user's question and the AI's answer, generate 3 relevant follow-up questions that the user might ask next.
+
+Question: {query}
+Answer: {answer}
+
+Return only a JSON array of 3 strings, like: ["Question 1?", "Question 2?", "Question 3?"]
+"""
+    response = call_groq([
+        {"role": "system", "content": "You are a helpful assistant that generates follow-up questions."},
+        {"role": "user", "content": prompt},
+    ])
+    
+    try:
+        import json
+        questions = json.loads(response.strip())
+        if isinstance(questions, list) and len(questions) == 3:
+            return questions
+        else:
+            return []
+    except:
+        return []

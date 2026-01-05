@@ -32,6 +32,7 @@ export type AssistantResponse = {
   completed: boolean;
   citations: Citation[];
   uiBlocks: UIBlock[];
+  followUpQuestions: string[];
 };
 
 export type Message =
@@ -51,13 +52,7 @@ type ChatSession = {
   messages: Message[];
 };
 
-type ThinkingStage = "searching" | "analyzing" | "answering" | null;
-
-type DocumentMeta = {
-  doc_id: string;
-  filename: string;
-  pages: number;
-};
+export type ThinkingStage = "searching" | "analyzing" | "answering" | null;
 
 /* ===================== STATE ===================== */
 
@@ -65,45 +60,49 @@ type ChatState = {
   chats: ChatSession[];
   currentChatId: string | null;
 
+  /* typing & stages */
   typing: boolean;
   thinkingStage: ThinkingStage;
+  setTyping: (v: boolean) => void;
+  setThinkingStage: (s: ThinkingStage) => void;
 
-  documents: DocumentMeta[];
+  /* files */
   pendingFiles: PendingFile[];
+  addPendingFiles: (files: FileList) => void;
+  removePendingFile: (id: string) => void;
+  clearPendingFiles: () => void;
 
-  /* PDF Viewer */
+  /* pdf viewer */
   activeCitation: Citation | null;
   viewerOpen: boolean;
 
-  /* ---------- CHAT ---------- */
+  /* chat navigation */
   startNewChat: () => void;
-  ensureChatExists: () => void;
+  switchChat: (id: string) => void;
+  deleteChat: (id: string) => void;
+
+  /* messages */
   addUserMessage: (msg: {
     content: string;
     files?: FileAttachment[];
   }) => void;
 
-  /* ---------- ASSISTANT STREAM ---------- */
+  /* assistant */
   startAssistantResponse: () => void;
   appendAssistantDelta: (delta: string) => void;
   addCitationToResponse: (citation: Citation) => void;
+  addFollowUpQuestions: (questions: string[]) => void;
   finalizeAssistantResponse: () => void;
 
-  /* ---------- CITATION SELECTOR ---------- */
+  /* follow-up actions */
+  sendFollowUp: (prompt: string) => Promise<void>;
+
+  /* citation */
   getCitationById: (id: number) => Citation | null;
 
-  /* ---------- VIEWER ---------- */
+  /* viewer */
   openPdfViewer: (citation: Citation) => void;
   closePdfViewer: () => void;
-
-  /* ---------- STATE ---------- */
-  setTyping: (v: boolean) => void;
-  setThinkingStage: (s: ThinkingStage) => void;
-  setDocuments: (d: DocumentMeta[]) => void;
-
-  /* ---------- FILES ---------- */
-  addPendingFiles: (files: FileList) => void;
-  clearPendingFiles: () => void;
 };
 
 /* ===================== STORE ===================== */
@@ -112,36 +111,86 @@ export const useChatStore = create<ChatState>((set, get) => ({
   chats: [],
   currentChatId: null,
 
+  /* ---------- typing ---------- */
+
   typing: false,
   thinkingStage: null,
+  setTyping: (v) => set({ typing: v }),
+  setThinkingStage: (s) => set({ thinkingStage: s }),
 
-  documents: [],
+  /* ---------- files ---------- */
+
   pendingFiles: [],
+
+  addPendingFiles: (files) =>
+    set({
+      pendingFiles: Array.from(files).map((f) => ({
+        id: crypto.randomUUID(),
+        file: f,
+      })),
+    }),
+
+  removePendingFile: (id) =>
+    set((state) => ({
+      pendingFiles: state.pendingFiles.filter((pf) => pf.id !== id),
+    })),
+
+  clearPendingFiles: () => set({ pendingFiles: [] }),
+
+  /* ---------- pdf viewer ---------- */
 
   activeCitation: null,
   viewerOpen: false,
 
-  /* ---------- CHAT ---------- */
-
-  ensureChatExists: () => {
-    if (!get().currentChatId) get().startNewChat();
-  },
+  /* ---------- chat navigation ---------- */
 
   startNewChat: () => {
     const id = crypto.randomUUID();
-    set({
-      chats: [{ id, title: "New chat", messages: [] }],
+    set((state) => ({
+      chats: [
+        {
+          id,
+          title: "New chat",
+          messages: [],
+        },
+        ...state.chats,
+      ],
       currentChatId: id,
       typing: false,
       thinkingStage: null,
       activeCitation: null,
       viewerOpen: false,
-    });
+      pendingFiles: [],
+    }));
   },
 
+  switchChat: (id) =>
+    set({
+      currentChatId: id,
+      typing: false,
+      thinkingStage: null,
+      activeCitation: null,
+      viewerOpen: false,
+      pendingFiles: [],
+    }),
+
+  deleteChat: (id) =>
+    set((state) => {
+      const remaining = state.chats.filter((c) => c.id !== id);
+      return {
+        chats: remaining,
+        currentChatId:
+          state.currentChatId === id
+            ? remaining[0]?.id ?? null
+            : state.currentChatId,
+      };
+    }),
+
+  /* ---------- messages ---------- */
+
   addUserMessage: ({ content, files }) => {
-    get().ensureChatExists();
     const { chats, currentChatId } = get();
+    if (!currentChatId) return;
 
     set({
       chats: chats.map((c) =>
@@ -156,10 +205,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
           : c
       ),
+      pendingFiles: [],
     });
   },
 
-  /* ---------- ASSISTANT STREAM ---------- */
+  /* ---------- assistant ---------- */
 
   startAssistantResponse: () => {
     const { chats, currentChatId } = get();
@@ -180,12 +230,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     completed: false,
                     citations: [],
                     uiBlocks: [],
+                    followUpQuestions: [],
                   },
                 },
               ],
             }
           : c
       ),
+      typing: true,
+      thinkingStage: "searching",
     });
   },
 
@@ -243,14 +296,68 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
 
+  addFollowUpQuestions: (questions) => {
+    const { chats, currentChatId } = get();
+    if (!currentChatId) return;
+
+    set({
+      chats: chats.map((c) => {
+        if (c.id !== currentChatId) return c;
+        const last = c.messages.at(-1);
+        if (!last || last.role !== "assistant") return c;
+
+        return {
+          ...c,
+          messages: [
+            ...c.messages.slice(0, -1),
+            {
+              role: "assistant",
+              response: {
+                ...last.response,
+                followUpQuestions: questions,
+              },
+            },
+          ],
+        };
+      }),
+    });
+  },
+
   finalizeAssistantResponse: () =>
     set({ typing: false, thinkingStage: null }),
 
-  /* ---------- SAFE CITATION SELECTOR ---------- */
+  /* ---------- FOLLOW-UP ACTIONS ---------- */
+
+  sendFollowUp: async (prompt) => {
+    const { currentChatId, addUserMessage, setTyping, setThinkingStage } = get();
+    if (!currentChatId) return;
+
+    addUserMessage({ content: prompt });
+
+    setTyping(true);
+    setThinkingStage("searching");
+
+    const res = await fetch("http://127.0.0.1:8000/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: prompt,
+        doc_ids: [],
+      }),
+    });
+
+    const { job_id } = await res.json();
+
+    const { connectSSE } = await import("@/lib/sse");
+    connectSSE(job_id, prompt, []);
+  },
+
+  /* ---------- citation ---------- */
 
   getCitationById: (id) => {
-    const { chats, currentChatId } = get();
-    const chat = chats.find((c) => c.id === currentChatId);
+    const chat = get().chats.find(
+      (c) => c.id === get().currentChatId
+    );
     if (!chat) return null;
 
     for (let i = chat.messages.length - 1; i >= 0; i--) {
@@ -263,35 +370,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     return null;
   },
 
-  /* ---------- PDF VIEWER ---------- */
+  /* ---------- viewer ---------- */
 
   openPdfViewer: (citation) =>
-    set({
-      activeCitation: citation,
-      viewerOpen: true,
-    }),
+    set({ activeCitation: citation, viewerOpen: true }),
 
   closePdfViewer: () =>
-    set({
-      activeCitation: null,
-      viewerOpen: false,
-    }),
-
-  /* ---------- STATE ---------- */
-
-  setTyping: (v) => set({ typing: v }),
-  setThinkingStage: (s) => set({ thinkingStage: s }),
-  setDocuments: (d) => set({ documents: d }),
-
-  /* ---------- FILES ---------- */
-
-  addPendingFiles: (files) =>
-    set({
-      pendingFiles: Array.from(files).map((f) => ({
-        id: crypto.randomUUID(),
-        file: f,
-      })),
-    }),
-
-  clearPendingFiles: () => set({ pendingFiles: [] }),
+    set({ activeCitation: null, viewerOpen: false }),
 }));

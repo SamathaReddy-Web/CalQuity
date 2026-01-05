@@ -7,7 +7,6 @@ import { connectSSE, stopSSE } from "@/lib/sse";
 
 export default function InputBar() {
   const [q, setQ] = useState("");
-
   const fileRef = useRef<HTMLInputElement>(null);
   const theme = useThemeStore((s) => s.theme);
 
@@ -24,7 +23,7 @@ export default function InputBar() {
   /* ===== THEME TOKENS ===== */
   const container =
     theme === "dark"
-      ? "bg-neutral-900/95 backdrop-blur-sm border border-neutral-600 shadow-lg"
+      ? "bg-neutral-900 border border-neutral-600 shadow-lg"
       : "bg-white border border-neutral-300";
 
   const inputText =
@@ -52,7 +51,6 @@ export default function InputBar() {
   async function sendMessage() {
     if (!q.trim() && pendingFiles.length === 0) return;
 
-    /* Upload PDFs */
     const uploaded = [];
 
     for (const pf of pendingFiles) {
@@ -74,7 +72,6 @@ export default function InputBar() {
     }
 
     addUserMessage({ content: q, files: uploaded });
-
     clearPendingFiles();
     setQ("");
 
@@ -91,7 +88,6 @@ export default function InputBar() {
     });
 
     const { job_id } = await res.json();
-
     connectSSE(job_id, q, uploaded.map((f) => f.doc_id));
   }
 
@@ -100,7 +96,7 @@ export default function InputBar() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl mb-6">
+    <div className="mx-auto max-w-3xl">
       <div
         className={`flex items-center gap-2 rounded-xl px-3 py-2 transition ${container}`}
       >

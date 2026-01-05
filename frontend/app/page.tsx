@@ -1,44 +1,104 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
 import ChatArea from "@/components/ChatArea";
-import { usePdfStore } from "@/store/pdfStore";
+import { useChatStore } from "@/store/chatStore";
 import { AnimatePresence, motion } from "framer-motion";
 import dynamic from "next/dynamic";
 
-// 🔴 Disable SSR for PDF viewer
 const PdfViewer = dynamic(() => import("@/components/PdfViewer"), {
   ssr: false,
 });
 
 export default function Page() {
-  const isOpen = usePdfStore((s) => s.isOpen);
+  const viewerOpen = useChatStore((s) => s.viewerOpen);
+
+  // % width of chat pane
+  const [chatWidth, setChatWidth] = useState(60);
+  const draggingRef = useRef(false);
+
+  function startDrag() {
+    draggingRef.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none"; // 🔒 prevent text selection
+  }
+
+  function stopDrag() {
+    draggingRef.current = false;
+    document.body.style.cursor = "default";
+    document.body.style.userSelect = "auto";
+  }
+
+  function onDrag(e: MouseEvent) {
+    if (!draggingRef.current) return;
+
+    const percent = (e.clientX / window.innerWidth) * 100;
+
+    // Clamp resize range
+    if (percent > 30 && percent < 80) {
+      setChatWidth(percent);
+    }
+  }
+
+  /* ------------------------------------------------
+     ✅ Attach window events safely (client only)
+  ------------------------------------------------ */
+  useEffect(() => {
+    window.addEventListener("mousemove", onDrag);
+    window.addEventListener("mouseup", stopDrag);
+
+    return () => {
+      window.removeEventListener("mousemove", onDrag);
+      window.removeEventListener("mouseup", stopDrag);
+    };
+  }, []);
 
   return (
-    <div className="flex h-full w-full bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100">
+    <div className="flex h-full w-screen bg-neutral-50 dark:bg-neutral-950">
       {/* SIDEBAR */}
       <Sidebar />
 
-      {/* MAIN */}
+      {/* MAIN SPLIT AREA */}
       <div className="flex flex-1 relative overflow-hidden">
         {/* CHAT */}
-        <motion.div
-          animate={{ width: isOpen ? "60%" : "100%" }}
-          transition={{ duration: 0.3, ease: "easeInOut" }}
-          className="h-full bg-white dark:bg-neutral-900"
+        <div
+          style={{ width: viewerOpen ? `${chatWidth}%` : "100%" }}
+          className="
+            h-full flex flex-col min-h-0
+    bg-white dark:bg-neutral-900
+    transition-all
+          "
         >
           <ChatArea />
-        </motion.div>
+        </div>
+
+        {/* DRAG HANDLE */}
+        {viewerOpen && (
+          <div
+            onMouseDown={startDrag}
+            className="
+              w-1 cursor-col-resize
+              bg-neutral-200 dark:bg-neutral-800
+              hover:bg-blue-500/50
+              transition
+            "
+          />
+        )}
 
         {/* PDF */}
         <AnimatePresence>
-          {isOpen && (
+          {viewerOpen && (
             <motion.div
-              initial={{ x: 300, opacity: 0 }}
+              initial={{ x: 200, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
-              exit={{ x: 300, opacity: 0 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
-              className="w-[40%] h-full border-l border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950"
+              exit={{ x: 200, opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              style={{ width: `${100 - chatWidth}%` }}
+              className="
+                h-full bg-white dark:bg-neutral-950
+                border-l border-neutral-200 dark:border-neutral-800
+              "
             >
               <PdfViewer />
             </motion.div>

@@ -1,18 +1,22 @@
 "use client";
 
+import { useEffect } from "react";
+import { useChatStore } from "@/store/chatStore";
+import { useThemeStore } from "@/store/themeStore";
 import ChatStream from "./ChatStream";
 import InputBar from "./InputBar";
 import PendingFilesBar from "./PendingFilesBar";
 import EmptyState from "./EmptyState";
 
-import { useChatStore } from "@/store/chatStore";
-import { useThemeStore } from "@/store/themeStore";
-
 export default function ChatArea() {
-  const theme = useThemeStore((s) => s.theme);
-
   const chats = useChatStore((s) => s.chats);
   const currentChatId = useChatStore((s) => s.currentChatId);
+  const startNewChat = useChatStore((s) => s.startNewChat);
+  const theme = useThemeStore((s) => s.theme);
+
+  useEffect(() => {
+    if (!currentChatId) startNewChat();
+  }, [currentChatId, startNewChat]);
 
   const currentChat = chats.find((c) => c.id === currentChatId);
   const isEmpty = !currentChat || currentChat.messages.length === 0;
@@ -24,13 +28,13 @@ export default function ChatArea() {
 
   return (
     <section className={`h-full flex flex-col ${bg}`}>
-      {/* CHAT CONTENT */}
-      <div className="flex-1 overflow-y-auto px-6 py-10 relative">
+      {/* MESSAGE AREA (ONLY THIS CAN BE OVERLAYED) */}
+      <div className="relative flex-1 overflow-y-auto px-6 py-10">
         {isEmpty ? <EmptyState /> : <ChatStream />}
       </div>
 
-      {/* INPUT AREA */}
-      <div className="px-4 py-3">
+      {/* INPUT AREA (NEVER COVERED) */}
+      <div className="shrink-0 border-t border-neutral-200 dark:border-neutral-800 px-4 py-3">
         <PendingFilesBar />
         <InputBar />
       </div>

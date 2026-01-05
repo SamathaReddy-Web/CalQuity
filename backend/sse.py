@@ -2,7 +2,7 @@ from fastapi.responses import StreamingResponse
 import asyncio
 import json
 
-from llm import llm_only_answer, llm_with_context
+from llm import llm_only_answer, llm_with_context, llm_follow_up_questions
 from pdf_utils import DOCUMENTS
 
 
@@ -89,6 +89,11 @@ Question:
         for c in citations:
             yield sse("citation", c)
 
+        # ---------- FOLLOW-UP QUESTIONS ----------
+        follow_ups = llm_follow_up_questions(query, answer)
+        if follow_ups:
+            yield sse("follow_up", follow_ups)
+
         yield sse("done")
         return
 
@@ -99,6 +104,11 @@ Question:
 
     async for chunk in stream_text(answer):
         yield chunk
+
+    # ---------- FOLLOW-UP QUESTIONS ----------
+    follow_ups = llm_follow_up_questions(query, answer)
+    if follow_ups:
+        yield sse("follow_up", follow_ups)
 
     yield sse("done")
 

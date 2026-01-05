@@ -43,7 +43,7 @@ export default function EmptyState() {
       : "bg-neutral-200 hover:bg-neutral-300";
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center px-6">
+    <div className="flex items-center justify-center min-h-full px-6">
       <div className="max-w-2xl w-full space-y-10">
         {/* Header */}
         <div className="text-center space-y-2">
@@ -61,12 +61,7 @@ export default function EmptyState() {
             <button
               key={a.title}
               onClick={() => sendPrompt(a.prompt)}
-              className={`
-                p-5 rounded-2xl text-left border
-                transition-all duration-200
-                hover:scale-[1.02]
-                ${card}
-              `}
+              className={`p-5 rounded-2xl text-left border transition hover:scale-[1.02] ${card}`}
             >
               <div className="flex gap-4 items-start">
                 <span className="text-2xl">{a.icon}</span>
@@ -81,21 +76,16 @@ export default function EmptyState() {
           ))}
         </div>
 
-        {/* Recent prompts */}
+        {/* Recent */}
         {recent.length > 0 && (
           <div>
-            <div className="text-xs text-neutral-400 mb-2">
-              Recent
-            </div>
+            <div className="text-xs text-neutral-400 mb-2">Recent</div>
             <div className="flex flex-wrap gap-2">
               {recent.map((r, i) => (
                 <button
                   key={i}
                   onClick={() => sendPrompt(r)}
-                  className={`
-                    px-3 py-1 rounded-full text-xs transition
-                    ${chip}
-                  `}
+                  className={`px-3 py-1 rounded-full text-xs transition ${chip}`}
                 >
                   {r}
                 </button>

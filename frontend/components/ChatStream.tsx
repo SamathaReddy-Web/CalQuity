@@ -9,6 +9,7 @@ export default function ChatStream() {
   const currentChatId = useChatStore((s) => s.currentChatId);
   const typing = useChatStore((s) => s.typing);
   const thinkingStage = useChatStore((s) => s.thinkingStage);
+  const sendFollowUp = useChatStore((s) => s.sendFollowUp);
   const theme = useThemeStore((s) => s.theme);
 
   const chat = currentChatId
@@ -17,36 +18,10 @@ export default function ChatStream() {
 
   const messages = chat?.messages ?? [];
 
-  /* ---------- Stage text ---------- */
-  const stageText =
-    thinkingStage === "searching"
-      ? "Searching documents"
-      : thinkingStage === "analyzing"
-      ? "Analyzing context"
-      : thinkingStage === "answering"
-      ? "Generating answer"
-      : null;
-
-  /* ---------- Theme tokens ---------- */
-  const userBubble =
-    theme === "dark"
-      ? "bg-neutral-800 text-neutral-100"
-      : "bg-neutral-200 text-neutral-900";
-
-  const assistantBubble =
-    theme === "dark"
-      ? "bg-neutral-900 text-neutral-100"
-      : "bg-white text-neutral-900 border border-neutral-200";
-
   const mutedText =
     theme === "dark" ? "text-neutral-400" : "text-neutral-500";
 
-  /* ---------- Assistant text renderer ---------- */
   function renderAssistantText(text: string) {
-    if (!text.trim()) {
-      return <span className={mutedText}>Thinking…</span>;
-    }
-
     const paragraphs = text
       .split(/\n+/)
       .map((p) => p.trim())
@@ -73,7 +48,6 @@ export default function ChatStream() {
     );
   }
 
-  /* ---------- User file attachments ---------- */
   function renderFiles(files: any[]) {
     return (
       <div className="mb-3 space-y-2">
@@ -92,7 +66,6 @@ export default function ChatStream() {
             `}
           >
             <span className="text-lg">📄</span>
-
             <div className="flex-1 overflow-hidden">
               <div className="font-medium truncate">{f.filename}</div>
               <div className={`text-xs ${mutedText}`}>
@@ -105,7 +78,6 @@ export default function ChatStream() {
     );
   }
 
-  /* ---------- MAIN ---------- */
   return (
     <div className="space-y-6 px-6 max-w-3xl mx-auto">
       {messages.map((m, i) => {
@@ -121,30 +93,60 @@ export default function ChatStream() {
                 max-w-[75%]
                 rounded-2xl px-6 py-4
                 shadow-sm
-                ${isUser ? userBubble : assistantBubble}
-                text-[15.5px]
+                ${
+                  isUser
+                    ? theme === "dark"
+                      ? "bg-neutral-800 text-neutral-100"
+                      : "bg-neutral-200 text-neutral-900"
+                    : theme === "dark"
+                    ? "bg-neutral-900 text-neutral-100"
+                    : "bg-white text-neutral-900 border border-neutral-200"
+                }
               `}
             >
-              {/* 📎 User files */}
               {isUser &&
                 Array.isArray(m.files) &&
                 m.files.length > 0 &&
                 renderFiles(m.files)}
 
-              {/* 💬 Message */}
               {m.role === "assistant"
                 ? renderAssistantText(m.response.text)
                 : m.content}
+
+              {/* ✅ FOLLOW-UPS NOW WORK */}
+              {m.role === "assistant" &&
+                m.response.completed &&
+                !typing &&
+                m.response.followUpQuestions.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {m.response.followUpQuestions.map((f, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => sendFollowUp(f)}
+                        className={`
+                          px-3 py-1.5 text-xs rounded-full
+                          transition
+                          ${
+                            theme === "dark"
+                              ? "bg-neutral-800 hover:bg-neutral-700 text-neutral-200"
+                              : "bg-neutral-100 hover:bg-neutral-200 text-neutral-800"
+                          }
+                        `}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                )}
             </div>
           </div>
         );
       })}
 
-      {/* ⏳ Typing indicator */}
-      {typing && stageText && (
-        <div className={`flex items-center gap-2 text-xs ${mutedText} pl-2`}>
+      {typing && thinkingStage && (
+        <div className={`flex items-center gap-2 text-xs ${mutedText}`}>
           <span className="w-2 h-2 rounded-full bg-neutral-400 animate-pulse" />
-          <span>{stageText}…</span>
+          <span>{thinkingStage}…</span>
         </div>
       )}
     </div>
